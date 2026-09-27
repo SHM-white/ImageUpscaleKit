@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory=$true, Position=0)] [string]$InputPath,
     [string]$OutputPath,
-    [ValidateSet('ncnn','magpie')] [string]$Engine,
+    [ValidateSet('ncnn','magpie','anime4kcpp')] [string]$Engine,
     [string]$Model,
     [string]$Scale,
     [int]$Tile = -1,
@@ -16,6 +16,9 @@ param(
     [string]$MagpieFamily,
     [string]$MagpieTier,
     [string]$MagpieEffect,
+    [ValidateSet('auto','cpu','opencl','cuda')] [string]$AcProcessor,
+    [ValidateRange(-1,65535)] [int]$AcDevice = -1,
+    [ValidateSet('error','overwrite','rename')] [string]$ExistingOutput,
     [string]$MagpiePreset
 )
 
@@ -25,6 +28,17 @@ $ConfigPath = Join-Path $Root 'config.json'
 $Cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if (-not $Engine) { $Engine = [string]$Cfg.engine }
 
+if ($ExistingOutput -and $Engine -ne 'anime4kcpp') { throw 'ExistingOutput currently applies only to the Anime4KCPP backend.' }
+if ($Engine -eq 'anime4kcpp') {
+    if ($Scale -and $Scale -notin @('auto','2')) { throw 'Anime4KCPP currently supports 2x output in this kit.' }
+    $acParams = @{ InputPath=$InputPath; Device=$AcDevice }
+    if ($OutputPath) { $acParams.OutputPath=$OutputPath }
+    if ($Model) { $acParams.Model=$Model }
+    if ($AcProcessor) { $acParams.Processor=$AcProcessor }
+    if ($ExistingOutput) { $acParams.ExistingOutput=$ExistingOutput }
+    & (Join-Path $Root 'Anime4KCPP.ps1') @acParams
+    return
+}
 if ($Engine -eq 'magpie') {
     # PowerShell script calls require a hashtable for named parameter splatting.
     $bridgeParams = @{ InputPath = $InputPath }

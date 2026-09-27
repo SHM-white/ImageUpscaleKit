@@ -1,14 +1,45 @@
-# Image Upscale Kit v4
+# Image Upscale Kit
 
-Windows 便携图片超分工具，支持两个后端：
+Windows 便携图片超分工具，支持三个后端：
 
+- **Anime4KCPP / ACNet**：直接读取图片并输出 2× PNG，支持单图、批处理、CPU / CUDA / OpenCL。
 - **NCNN / Real-ESRGAN**：`.param + .bin` 模型。
 - **MagpieFX**：直接调用官方 Magpie v0.12.1，动态扫描 `effects\` 下全部 `.hlsl`，并且**优先直接兼容 Magpie 自己的 `config.json`**。
 
+
+## ACNet 2×（新增，当前默认）
+
+双击 `Run-GUI.cmd`，引擎选择 `anime4kcpp`。默认模型 `acnet-legacy-gan`、处理器 `auto`、设备 `0`；模型下拉框从已安装 CLI 扫描全部内置模型，包括 ACNet、ARNet、ArtCNN、FSRCNNX；刷新时保留当前选择。
+
+- `acnet-legacy-gan`：细节增强，先用它比较线条表现。
+- `acnet-legacy-hdn0`：中等降噪；HDN1～3 降噪逐步增强。
+- 新版 `acnet-f8b*` 也可选择。它们与 Magpie 的 ACNet shader 不保证逐像素一致。
+- 直接 2× 输出，无需先做邻近采样放大，也无需窗口捕获/截图。
+- 输入支持 PNG/JPEG/BMP/WebP/TIFF 静态图片；目录只处理第一层，TIFF 按默认帧处理。输出固定 PNG。
+- 自动输出为 `原文件名_acnet_x2.png` 或 `原目录_acnet_x2`。GUI 的“已有文件”可选：停止并提示（默认）、覆盖已有文件、自动加序号（如 image_1.png、image_2.png）。自动编号也解决批内同名冲突；覆盖模式在成功生成新图后才替换旧结果，仍禁止覆盖输入原图。
+
+仅安装 ACNet（不重新安装或修改 Magpie）：
+
+```powershell
+pwsh -NoProfile -File .\Setup-Anime4KCPP.ps1
+# 或：Setup.cmd -Engine anime4kcpp
+```
+
+`Setup.cmd` 不带参数时安装全部三个后端。安装器固定官方 v3.2.0 Windows x64 CLI，并校验 SHA-256；模型内置，无需 NCNN .param/.bin。
+
+```powershell
+pwsh -NoProfile -File .\Upscale.ps1 -Engine anime4kcpp -InputPath .\input -Model acnet-legacy-gan -Scale 2 -AcProcessor auto -AcDevice 0
+```
+
+运行日志在 `logs/acnet-*.log`。为绕过官方图片加载器的中文路径问题，脚本在独立临时目录中使用英文文件名，成功后再移动到目标路径；检查退出码及输出存在性，因为部分原生加载错误仍返回 0。
+
+回归测试：`pwsh -NoProfile -File .\tests\Smoke-Anime4KCPP.ps1`。
+
+参考：[官方发布包](https://github.com/TianZerL/Anime4KCPP/releases/tag/v3.2.0)、[CLI 文档](https://github.com/TianZerL/Anime4KCPP/wiki/CLI)、[模型说明](https://github.com/TianZerL/Anime4KCPP/wiki/Model)。
 ## 首次使用
 
 1. 安装 PowerShell 7。
-2. 双击 `Setup.cmd`，下载 Real-ESRGAN NCNN 与官方 Magpie。
+2. 双击 `Setup.cmd`，下载 Anime4KCPP、Real-ESRGAN NCNN 与官方 Magpie。
 3. 双击 `Run-GUI.cmd`。
 
 > GUI 使用 `pwsh -STA`，输入/输出文件夹选择器已修复。
@@ -156,3 +187,5 @@ ImageUpscaleKit-v4
 "toolbar_x_offset_dip": -106,
 "toolbar_y_dip": 15
 ```
+
+ACNet 命令行输出策略：`-ExistingOutput error|overwrite|rename`；省略时读取 `config.json` 的 `anime4kcpp.existing_output`。此选项仅用于 Anime4KCPP。

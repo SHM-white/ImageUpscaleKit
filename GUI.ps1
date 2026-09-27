@@ -4,7 +4,14 @@ Add-Type -AssemblyName System.Drawing
 $Root=Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigPath=Join-Path $Root 'config.json'
 . (Join-Path $Root 'MagpieHelpers.ps1')
-function Load-Cfg { Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json }
+function Load-Cfg {
+    $loaded = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $loaded.anime4kcpp) {
+        $loaded | Add-Member -NotePropertyName anime4kcpp -NotePropertyValue ([pscustomobject]@{backend_path='bin\anime4kcpp\ac_cli.exe';model='acnet-legacy-gan';processor='auto';device=0})
+    }
+    if (-not $loaded.anime4kcpp.PSObject.Properties['existing_output']) { $loaded.anime4kcpp | Add-Member -NotePropertyName existing_output -NotePropertyValue 'error' }
+    return $loaded
+}
 function Save-Cfg($c) { $c | ConvertTo-Json -Depth 12 | Set-Content $ConfigPath -Encoding utf8NoBOM }
 function RPath($p) { if ([IO.Path]::IsPathRooted($p)) { return [IO.Path]::GetFullPath($p) }; [IO.Path]::GetFullPath((Join-Path $Root $p)) }
 function Models($dir) { if (!(Test-Path $dir)){return @()}; @(Get-ChildItem $dir -Filter '*.param' -File | Where-Object { Test-Path (Join-Path $dir ($_.BaseName+'.bin')) } | ForEach-Object BaseName | Sort-Object -Unique) }
@@ -22,11 +29,12 @@ function Select-Image([string]$Initial='') {
 }
 function Select-OutputFile([string]$Initial='') {
     $d=[Windows.Forms.SaveFileDialog]::new();$d.Filter='PNG image|*.png|JPEG image|*.jpg;*.jpeg|WebP image|*.webp|All files|*.*';$d.DefaultExt='png';$d.AddExtension=$true
+    if($engine.Text -eq 'anime4kcpp'){$d.Filter='PNG image|*.png'}
     if($Initial){$dir=Split-Path -Parent $Initial;if($dir -and (Test-Path -LiteralPath $dir)){$d.InitialDirectory=$dir};$d.FileName=Split-Path -Leaf $Initial}
     try { if($d.ShowDialog($form)-eq [Windows.Forms.DialogResult]::OK){ return $d.FileName } } finally { $d.Dispose() }
     return $null
 }
-function Default-Output([string]$p){if(-not $p -or -not(Test-Path -LiteralPath $p)){return ''};$i=Get-Item -LiteralPath $p;$s=[string]$cfg.output_suffix;if($i.PSIsContainer){return Join-Path $i.Parent.FullName ($i.Name+$s)};return Join-Path $i.Directory.FullName ($i.BaseName+$s+'.png')}
+function Default-Output([string]$p){if(-not $p -or -not(Test-Path -LiteralPath $p)){return ''};$i=Get-Item -LiteralPath $p;$s=if($engine.Text -eq 'anime4kcpp'){'_acnet_x2'}else{[string]$cfg.output_suffix};if($i.PSIsContainer){return Join-Path $i.Parent.FullName ($i.Name+$s)};return Join-Path $i.Directory.FullName ($i.BaseName+$s+'.png')}
 function Start-Pwsh([object[]]$ArgumentList,[switch]$Wait) {
     $psi=[Diagnostics.ProcessStartInfo]::new();$psi.FileName='pwsh.exe';$psi.UseShellExecute=$true
     foreach($a in $ArgumentList){[void]$psi.ArgumentList.Add([string]$a)}
@@ -34,13 +42,13 @@ function Start-Pwsh([object[]]$ArgumentList,[switch]$Wait) {
 }
 
 $cfg=Load-Cfg
-$form=[Windows.Forms.Form]::new(); $form.Text='Image Upscale Kit v4 - NCNN + MagpieFX'; $form.Size=[Drawing.Size]::new(930,740); $form.StartPosition='CenterScreen'; $form.Font=[Drawing.Font]::new('Segoe UI',9); $form.FormBorderStyle='FixedDialog'; $form.MaximizeBox=$false
+$form=[Windows.Forms.Form]::new(); $form.Text='Image Upscale Kit - ACNet / NCNN / MagpieFX'; $form.Size=[Drawing.Size]::new(930,740); $form.StartPosition='CenterScreen'; $form.Font=[Drawing.Font]::new('Segoe UI',9); $form.FormBorderStyle='FixedDialog'; $form.MaximizeBox=$false
 function Label($t,$x,$y,$w=120){$c=[Windows.Forms.Label]::new();$c.Text=$t;$c.Location=[Drawing.Point]::new($x,$y);$c.Size=[Drawing.Size]::new($w,24);$form.Controls.Add($c);$c}
 function Text($x,$y,$w){$c=[Windows.Forms.TextBox]::new();$c.Location=[Drawing.Point]::new($x,$y);$c.Size=[Drawing.Size]::new($w,24);$form.Controls.Add($c);$c}
 function Button($t,$x,$y,$w=90){$c=[Windows.Forms.Button]::new();$c.Text=$t;$c.Location=[Drawing.Point]::new($x,$y);$c.Size=[Drawing.Size]::new($w,28);$form.Controls.Add($c);$c}
 
 Label '处理引擎' 20 22|Out-Null
-$engine=[Windows.Forms.ComboBox]::new();$engine.DropDownStyle='DropDownList';$engine.Items.AddRange(@('ncnn','magpie'));$engine.Location=[Drawing.Point]::new(145,18);$engine.Size=[Drawing.Size]::new(180,25);$form.Controls.Add($engine);$engine.SelectedItem=[string]$cfg.engine
+$engine=[Windows.Forms.ComboBox]::new();$engine.DropDownStyle='DropDownList';$engine.Items.AddRange(@('ncnn','magpie','anime4kcpp'));$engine.Location=[Drawing.Point]::new(145,18);$engine.Size=[Drawing.Size]::new(180,25);$form.Controls.Add($engine);$engine.SelectedItem=[string]$cfg.engine
 Label '输入图片/文件夹' 20 64|Out-Null;$inputBox=Text 145 60 515;$bi=Button '选图片' 670 58 75;$bif=Button '选文件夹' 750 58 80;$clearIn=Button '清空' 835 58 65
 Label '输出文件/文件夹' 20 104|Out-Null;$outputBox=Text 145 100 515;$bof=Button '选文件' 670 98 75;$bod=Button '选文件夹' 750 98 80;$autoOut=Button '自动' 835 98 65
 
@@ -65,8 +73,47 @@ $openModes=[Windows.Forms.Button]::new();$openModes.Text='打开 Magpie 配置';
 $openE=[Windows.Forms.Button]::new();$openE.Text='打开 HLSL 目录';$openE.Location=[Drawing.Point]::new(665,68);$openE.Size=[Drawing.Size]::new(200,28);$grpM.Controls.Add($openE)
 $preview=[Windows.Forms.TextBox]::new();$preview.Location=[Drawing.Point]::new(15,148);$preview.Size=[Drawing.Size]::new(850,95);$preview.Multiline=$true;$preview.ReadOnly=$true;$preview.ScrollBars='Vertical';$grpM.Controls.Add($preview)
 
+$grpA=[Windows.Forms.GroupBox]::new();$grpA.Text='Anime4KCPP - 全部模型 / 2x PNG';$grpA.Location=[Drawing.Point]::new(20,145);$grpA.Size=[Drawing.Size]::new(880,240);$form.Controls.Add($grpA)
+function ALabel($text,$x,$y,$width=100){$label=[Windows.Forms.Label]::new();$label.Text=$text;$label.Location=[Drawing.Point]::new($x,$y);$label.Size=[Drawing.Size]::new($width,24);$grpA.Controls.Add($label)}
+ALabel '模型' 15 32
+$acModel=[Windows.Forms.ComboBox]::new();$acModel.DropDownStyle='DropDownList';$acModel.Location=[Drawing.Point]::new(120,28);$acModel.Size=[Drawing.Size]::new(420,25);$grpA.Controls.Add($acModel)
+$acRefresh=[Windows.Forms.Button]::new();$acRefresh.Text='刷新模型';$acRefresh.Location=[Drawing.Point]::new(565,26);$acRefresh.Size=[Drawing.Size]::new(100,28);$grpA.Controls.Add($acRefresh)
+ALabel '处理器' 15 76
+$acProcessor=[Windows.Forms.ComboBox]::new();$acProcessor.DropDownStyle='DropDownList';$acProcessor.Items.AddRange(@('auto','cuda','opencl','cpu'));$acProcessor.Location=[Drawing.Point]::new(120,72);$acProcessor.Size=[Drawing.Size]::new(150,25);$grpA.Controls.Add($acProcessor)
+$acProcessor.SelectedItem=[string]$cfg.anime4kcpp.processor
+if($acProcessor.SelectedIndex -lt 0){$acProcessor.SelectedItem='auto'}
+ALabel '设备编号' 310 76
+$acDevice=[Windows.Forms.NumericUpDown]::new();$acDevice.Location=[Drawing.Point]::new(415,72);$acDevice.Maximum=65535;$acDevice.Value=[decimal]$cfg.anime4kcpp.device;$grpA.Controls.Add($acDevice)
+ALabel '直接放大 2 倍，无需预放大或窗口截图。输出为 PNG。' 15 118 830
+ALabel 'ACNet / ARNet / ArtCNN / FSRCNNX 全系列；具体模型以已安装后端为准。' 15 150 830
+ALabel '已有文件' 15 186
+$acExisting=[Windows.Forms.ComboBox]::new();$acExisting.DropDownStyle='DropDownList';$acExisting.Location=[Drawing.Point]::new(120,182);$acExisting.Size=[Drawing.Size]::new(235,25);$grpA.Controls.Add($acExisting)
+$acExisting.Items.AddRange(@('停止并提示','覆盖已有文件','自动加序号（_1、_2…）'))
+$acOutputPolicies=@('error','overwrite','rename')
+$acExisting.SelectedIndex=[Array]::IndexOf($acOutputPolicies,[string]$cfg.anime4kcpp.existing_output)
+if($acExisting.SelectedIndex -lt 0){$acExisting.SelectedIndex=0}
+function RefreshA {
+    $wanted=if($acModel.Text){$acModel.Text}else{[string]$cfg.anime4kcpp.model}
+    $acModel.Items.Clear()
+    $backend=RPath $cfg.anime4kcpp.backend_path
+    if(Test-Path -LiteralPath $backend){
+        $listing=& $backend --lm 2>&1
+        if($LASTEXITCODE -eq 0){foreach($line in $listing){if([string]$line -match '^  ([\w-]+):\s*$'){[void]$acModel.Items.Add($Matches[1])}}}
+    }
+    if($acModel.Items.Count -eq 0){$acModel.Items.AddRange(@('acnet-legacy-gan','acnet-legacy-hdn0','acnet-legacy-hdn1','acnet-legacy-hdn2','acnet-legacy-hdn3','acnet-f8b4','acnet-f8b4-hdn','acnet-f8b4-box','acnet-f8b4-box-hdn','acnet-f8b8','acnet-f8b8-hdn','acnet-f8b8-box','acnet-f8b8-box-hdn','acnet-f8b18','acnet-f8b18-hdn','acnet-f8b18-box','acnet-f8b18-box-hdn','arnet-f8b8','arnet-f8b8-hdn','arnet-f8b8-box','arnet-f8b8-box-hdn','arnet-f8b16','arnet-f8b16-hdn','arnet-f8b16-box','arnet-f8b16-box-hdn','arnet-f8b32','arnet-f8b32-hdn','arnet-f8b32-box','arnet-f8b32-box-hdn','arnet-f8b64','arnet-f8b64-hdn','arnet-f8b64-box','arnet-f8b64-box-hdn','artcnn-c4f16','artcnn-c4f16-dn','artcnn-c4f16-ds','artcnn-c4f32','artcnn-c4f32-dn','artcnn-c4f32-ds','fsrcnnx-f8b4','fsrcnnx-f8b4-distort-plus','fsrcnnx-f16b4','fsrcnnx-f16b4-distort-plus'))}
+    if($acModel.Items.Contains($wanted)){$acModel.SelectedItem=$wanted}else{$acModel.SelectedIndex=0}
+}
+function UpdateEngineState {
+    $grpA.Visible=$engine.Text -eq 'anime4kcpp'
+    $grpN.Visible=$engine.Text -ne 'anime4kcpp';$grpN.Enabled=$engine.Text -eq 'ncnn'
+    $grpM.Visible=$engine.Text -ne 'anime4kcpp';$grpM.Enabled=$engine.Text -eq 'magpie'
+    if($grpA.Visible){$grpA.BringToFront()}
+}
+$acRefresh.Add_Click({RefreshA;Status})
+$engine.Add_SelectedIndexChanged({UpdateEngineState;if($inputBox.Text){$outputBox.Text=Default-Output $inputBox.Text}})
+RefreshA;UpdateEngineState
 $status=[Windows.Forms.Label]::new();$status.Location=[Drawing.Point]::new(20,585);$status.Size=[Drawing.Size]::new(620,60);$form.Controls.Add($status)
-$setup=Button '安装/修复双核心' 690 585 210
+$setup=Button '安装/修复后端' 690 585 210
 $save=Button '保存设置' 575 655 100;$run=Button '开始处理' 685 655 100;$logs=Button '打开日志' 795 655 105
 
 function ModeFile(){RPath ([string]$cfg.magpie.mode_file)}
@@ -117,11 +164,12 @@ function UpdatePreview {
     } catch {$preview.Text=$_.Exception.Message}
 }
 function Status {
+    $acInstalled=Test-Path (RPath $cfg.anime4kcpp.backend_path)
     $n=Test-Path (RPath $cfg.ncnn.backend_path)
     $m=Test-Path (RPath $cfg.magpie.exe_path)
     $count=@(Get-IUKMagpieEffects (EffectsDir)).Count
     $source=Get-IUKModeSourceLabel (ConfigFile) (ModeFile)
-    $status.Text="NCNN: $(if($n){'已安装'}else{'未安装'})    Magpie: $(if($m){'已安装'}else{'未安装'})    HLSL: $count`r`n方案来源: $source    GUI 使用 STA；输入/输出文件夹选择已修复。"
+    $status.Text="ACNet: $(if($acInstalled){'已安装'}else{'未安装'})    NCNN: $(if($n){'已安装'}else{'未安装'})    Magpie: $(if($m){'已安装'}else{'未安装'})    HLSL: $count`r`n方案来源: $source    GUI 使用 STA；输入/输出文件夹选择已修复。"
 }
 
 RefreshN
@@ -147,13 +195,17 @@ $openModes.Add_Click({
     elseif(Test-Path $pm){Start-Process notepad.exe $pm}
     else {[Windows.Forms.MessageBox]::Show('未找到 Magpie 配置文件，也未找到备用 magpie_modes.json。')|Out-Null}
 })
-$openE.Add_Click({$p=EffectsDir;if(Test-Path $p){Start-Process explorer.exe $p}else{[Windows.Forms.MessageBox]::Show('请先运行安装/修复双核心。')|Out-Null}})
+$openE.Add_Click({$p=EffectsDir;if(Test-Path $p){Start-Process explorer.exe $p}else{[Windows.Forms.MessageBox]::Show('请先运行安装/修复后端。')|Out-Null}})
 $logs.Add_Click({$p=Join-Path $Root 'logs';New-Item -ItemType Directory -Force -Path $p|Out-Null;Start-Process explorer.exe $p})
-$setup.Add_Click({Start-Pwsh @('-NoProfile','-File',(Join-Path $Root 'Setup.ps1')) -Wait|Out-Null;$cfg=Load-Cfg;RefreshN;RefreshM;Status})
+$setup.Add_Click({$scriptName=if($engine.Text -eq 'anime4kcpp'){'Setup-Anime4KCPP.ps1'}else{'Setup.ps1'};Start-Pwsh @('-NoProfile','-File',(Join-Path $Root $scriptName)) -Wait|Out-Null;$cfg=Load-Cfg;RefreshN;RefreshM;RefreshA;Status})
 $saveAction={
     try {
         $cfg=Load-Cfg
         $cfg.engine=$engine.Text
+        $cfg.anime4kcpp.model=$acModel.Text
+        $cfg.anime4kcpp.processor=$acProcessor.Text
+        $cfg.anime4kcpp.device=[int]$acDevice.Value
+        $cfg.anime4kcpp.existing_output=$acOutputPolicies[$acExisting.SelectedIndex]
         if($model.Text){$cfg.ncnn.model=$model.Text}
         $cfg.ncnn.scale=$scale.Text
         $cfg.ncnn.tile=[int]$tile.Text
@@ -177,7 +229,9 @@ $run.Add_Click({
     if(-not(Test-Path -LiteralPath $inputBox.Text)){[Windows.Forms.MessageBox]::Show('请选择有效输入。')|Out-Null;return}
     $a=@('-NoProfile','-File',(Join-Path $Root 'Upscale.ps1'),'-InputPath',$inputBox.Text,'-Engine',$engine.Text)
     if($outputBox.Text){$a+=@('-OutputPath',$outputBox.Text)}
-    if($engine.Text-eq'ncnn'){
+    if($engine.Text -eq 'anime4kcpp'){
+        $a+=@('-Model',$acModel.Text,'-Scale','2','-AcProcessor',$acProcessor.Text,'-AcDevice',[string]$acDevice.Value,'-ExistingOutput',$acOutputPolicies[$acExisting.SelectedIndex])
+    } elseif($engine.Text-eq'ncnn'){
         $a+=@('-Model',$model.Text,'-Scale',$scale.Text,'-Tile',$tile.Text,'-Gpu',$gpu.Text,'-Threads',$threads.Text)
         if($tta.Checked){$a+='-Tta'}else{$a+='-NoTta'}
     } else {

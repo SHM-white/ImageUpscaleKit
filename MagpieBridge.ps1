@@ -205,16 +205,23 @@ if (-not ('IUKWin32' -as [type])) { Add-Type -TypeDefinition $nativeCode }
 function Start-PwshChild([object[]]$ArgumentList) {
     $psi=[Diagnostics.ProcessStartInfo]::new()
     $psi.FileName='pwsh.exe'
-    $psi.UseShellExecute=$true
+    $psi.UseShellExecute=$false
+    $psi.CreateNoWindow=$true
+    $psi.RedirectStandardOutput=$true
+    $psi.RedirectStandardError=$true
     foreach($a in $ArgumentList){[void]$psi.ArgumentList.Add([string]$a)}
     return [Diagnostics.Process]::Start($psi)
 }
 
-function Wait-Window([string]$ClassName, [string]$Title, [int]$TimeoutMs) {
+function Wait-Window([string]$ClassName, [string]$Title, [int]$TimeoutMs, [Diagnostics.Process]$Process = $null) {
+    # String parameters coerce $null to ''; Win32 needs null to omit a filter.
+    $windowClass = if ([string]::IsNullOrEmpty($ClassName)) { [System.Management.Automation.Language.NullString]::Value } else { $ClassName }
+    $windowTitle = if ([string]::IsNullOrEmpty($Title)) { [System.Management.Automation.Language.NullString]::Value } else { $Title }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     do {
-        $h = [IUKWin32]::FindWindow($ClassName, $Title)
+        $h = [IUKWin32]::FindWindow($windowClass, $windowTitle)
         if ($h -ne [IntPtr]::Zero) { return $h }
+        if ($Process -and $Process.HasExited) { return [IntPtr]::Zero }
         Start-Sleep -Milliseconds 100
     } while ($sw.ElapsedMilliseconds -lt $TimeoutMs)
     return [IntPtr]::Zero
@@ -289,9 +296,17 @@ try {
 
         $title = 'IUK_ImageHost_' + [guid]::NewGuid().ToString('N')
         $imageHostProcess = Start-PwshChild @('-NoProfile','-STA','-File',$HostScript,'-ImagePath',$file.FullName,'-WindowTitle',$title)
+        $hostOutputTask = $imageHostProcess.StandardOutput.ReadToEndAsync()
+        $hostErrorTask = $imageHostProcess.StandardError.ReadToEndAsync()
         try {
-            $src = Wait-Window $null $title 5000
-            if ($src -eq [IntPtr]::Zero) { throw "Image host window did not appear for $($file.Name)" }
+            $src = Wait-Window $null $title 15000 $imageHostProcess
+            if ($src -eq [IntPtr]::Zero) {
+                if ($imageHostProcess.HasExited) {
+                    $hostDetails = ($hostErrorTask.GetAwaiter().GetResult() + "`n" + $hostOutputTask.GetAwaiter().GetResult()).Trim()
+                    throw "Image host exited with code $($imageHostProcess.ExitCode) for $($file.Name).`n$hostDetails"
+                }
+                throw "Image host window did not appear within 15 seconds for $($file.Name) (PID $($imageHostProcess.Id))."
+            }
             [IUKWin32]::SetForegroundWindow($src) | Out-Null
             Start-Sleep -Milliseconds 250
 

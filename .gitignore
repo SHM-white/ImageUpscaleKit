@@ -34,3 +34,7 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+
+# ACNet outputs created beside input files/folders
+*_acnet_x2/
+*_acnet_x2.png

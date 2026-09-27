@@ -1,4 +1,7 @@
+param([ValidateSet('all','anime4kcpp')] [string]$Engine = 'all')
 $ErrorActionPreference='Stop'
+& (Join-Path $PSScriptRoot 'Setup-Anime4KCPP.ps1')
+if ($Engine -eq 'anime4kcpp') { return }
 $Root=Split-Path -Parent $MyInvocation.MyCommand.Path
 $Cfg=Get-Content (Join-Path $Root 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $BinDir=Join-Path $Root 'bin'; $ModelDir=Join-Path $Root 'models'

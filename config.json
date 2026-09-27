@@ -1,9 +1,9 @@
 {
-  "engine": "magpie",
+  "engine": "anime4kcpp",
   "ncnn": {
     "backend_path": "bin\\realesrgan-ncnn-vulkan.exe",
     "model_dir": "models",
-    "model": "realesr-animevideov3-x2",
+    "model": "realesrgan-x4plus-anime",
     "scale": "auto",
     "tile": 0,
     "gpu": "auto",
@@ -19,14 +19,21 @@
     "mode_file": "magpie_modes.json",
     "selection_type": "family",
     "mode": "Anime4K",
-    "tier": "UL",
+    "tier": "Default",
     "raw_effect": "Anime4K\\Anime4K_Upscale_Denoise_L",
     "startup_wait_ms": 1200,
     "scale_wait_ms": 1200,
     "screenshot_wait_ms": 8000,
     "toolbar_x_offset_dip": -106,
     "toolbar_y_dip": 15,
-    "family": "Anime4K\\Anime4K_Upscale_Denoise"
+    "family": "ACNet"
   },
-  "output_suffix": "_upscaled"
+  "output_suffix": "_upscaled",
+  "anime4kcpp": {
+    "backend_path": "bin\\anime4kcpp\\ac_cli.exe",
+    "model": "acnet-f8b18",
+    "processor": "cuda",
+    "device": 0,
+    "existing_output": "rename"
+  }
 }

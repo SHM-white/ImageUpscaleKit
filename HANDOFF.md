@@ -816,3 +816,28 @@ GUI 控件变量 $input/$output
 
 - MagpieBridge.ps1 的图片宿主进程变量由 `$host` 改为 `$imageHostProcess`，启动与 finally 清理引用同步更新。PowerShell 变量名不区分大小写，原名称与只读自动变量 Host 冲突。
 - 已通过脚本语法检查，并确认项目脚本无残留 Host 变量引用；未运行真实 Magpie 渲染截图。
+
+## 补充修复：图片宿主窗口查找（2026-09-28）
+
+- 修复 Wait-Window 中未指定类名/标题时被 PowerShell 转成空字符串的问题。使用 `[System.Management.Automation.Language.NullString]::Value`，确保 FindWindow 收到真正的 null；图片宿主和 Magpie 缩放窗口两种查询均受益。
+- 图片宿主改为隐藏控制台并异步捕获 stdout/stderr；进程提前退出时报告退出码和错误详情，窗口等待上限改为 15 秒。
+- 已通过语法检查、两种过滤条件的原生调用边界验证、子进程错误捕获验证。使用 input 内含中文和空格路径的真实图片启动 ImageHost，修复后的查询成功取得 HWND，同一窗口用原空字符串查询返回 0。
+- 本次未执行完整 Magpie 超分及截图流程。
+## 新增 Anime4KCPP 后端（2026-09-28）
+
+- 已安装官方 v3.2.0 x64 CLI 到 bin/anime4kcpp；Setup-Anime4KCPP.ps1 校验固定发布包 SHA-256。Setup.ps1 / Setup.cmd 支持 -Engine anime4kcpp 单独安装，默认安装三个后端。
+- 新增 Anime4KCPP.ps1，统一入口支持 -Engine anime4kcpp -Model <name> -Scale 2 -AcProcessor auto|cpu|opencl|cuda -AcDevice <index>。单图、文件夹第一层批处理，固定输出 PNG 2×，防止覆盖原图/已有结果及同名输出冲突。
+- GUI 已接入独立 ACNet 面板、动态模型列表、处理器、设备和安装按钮。默认引擎切换为 anime4kcpp，默认模型 acnet-legacy-gan，auto/0。
+- 实测官方 CLI 的中文输入路径加载失败且仍返回退出码 0。现使用每张图片独立临时工作目录和英文相对文件名处理，检查输出存在性，成功后再移动结果；stdout/stderr 写入 logs。
+- 使用 input 首张图片完成真实 CUDA 测试：1672×941 → 3344×1882；output/acnet-legacy-gan-x2.png 与 output/acnet-legacy-hdn0-x2.png 可供人工比较。本轮不声称与 Magpie shader 完全一致。
+- tests/Smoke-Anime4KCPP.ps1 已通过：中文/空格、单图/批量/默认输出、CPU/auto、2× 尺寸、已有文件保护、无效倍率、相同目录、输出名冲突、损坏图片失败检测。GUI 已验证动态模型、切换、临时配置保存及开始按钮参数。所有脚本语法检查通过。
+## ACNet 已有输出策略
+
+- GUI 新增“已有文件”选择，配置键 anime4kcpp.existing_output，CLI 参数 -ExistingOutput error|overwrite|rename；默认 error，旧配置自动补默认值。
+- overwrite 仅在生成成功后替换旧结果；rename 使用 _1、_2 等编号并预留批内名称。保持原图保护，覆盖模式遇批内重复名称仍提示改用 rename。
+- 回归通过：连续编号、批内冲突、覆盖成功、处理失败保留原结果；GUI 三种策略的保存与命令行传参均验证通过。
+
+## Anime4KCPP 全模型下拉列表
+
+- 移除 GUI 的 acnet- 前缀过滤，显示 CLI --lm 返回的所有模型；未安装时的备用列表同步到 v3.2.0 全模型。
+- 已验证全部 43 个模型可见，ArtCNN 选择在刷新后保留，离线备用列表一致。
