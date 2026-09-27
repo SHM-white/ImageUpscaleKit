@@ -1,0 +1,6 @@
+Image Upscale Kit v4
+
+1. 先运行 Setup.cmd
+2. 再运行 Run-GUI.cmd
+3. Magpie 模式默认优先读取 bin\magpie\config\config.json
+4. 如果你在 Magpie 里改了缩放方案，回到本工具点击“刷新 HLSL”即可重新读取

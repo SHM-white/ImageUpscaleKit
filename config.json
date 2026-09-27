@@ -1,0 +1,32 @@
+{
+  "engine": "magpie",
+  "ncnn": {
+    "backend_path": "bin\\realesrgan-ncnn-vulkan.exe",
+    "model_dir": "models",
+    "model": "realesr-animevideov3-x2",
+    "scale": "auto",
+    "tile": 0,
+    "gpu": "auto",
+    "threads": "1:2:2",
+    "format": "png",
+    "tta": false,
+    "verbose": true
+  },
+  "magpie": {
+    "exe_path": "bin\\magpie\\Magpie.exe",
+    "effects_dir": "bin\\magpie\\effects",
+    "config_file": "bin\\magpie\\config\\config.json",
+    "mode_file": "magpie_modes.json",
+    "selection_type": "family",
+    "mode": "Anime4K",
+    "tier": "UL",
+    "raw_effect": "Anime4K\\Anime4K_Upscale_Denoise_L",
+    "startup_wait_ms": 1200,
+    "scale_wait_ms": 1200,
+    "screenshot_wait_ms": 8000,
+    "toolbar_x_offset_dip": -106,
+    "toolbar_y_dip": 15,
+    "family": "Anime4K\\Anime4K_Upscale_Denoise"
+  },
+  "output_suffix": "_upscaled"
+}

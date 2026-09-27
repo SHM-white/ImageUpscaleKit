@@ -1,0 +1,36 @@
+# Downloaded backends and their runtime configuration/cache
+/bin/*
+!/bin/.gitkeep
+
+# Downloaded/custom model files; retain model documentation
+/models/*
+!/models/README.txt
+!/models/.gitkeep
+
+# Local input images and generated results
+/input/*
+!/input/.gitkeep
+/output/*
+!/output/.gitkeep
+/*_upscaled/*
+!/*_upscaled/.gitkeep
+
+# Runtime logs, screenshots and temporary files
+/logs/*
+!/logs/.gitkeep
+/temp/*
+!/temp/.gitkeep
+
+# Local editor settings and OS metadata
+/.idea/
+/.vscode/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local environment secrets
+.env
+.env.*
+!.env.example

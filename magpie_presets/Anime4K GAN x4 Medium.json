@@ -1,0 +1,8 @@
+{
+  "name": "Anime4K GAN x4 Medium",
+  "description": "Runs Anime4K GAN x2 Medium twice for 4x output.",
+  "effects": [
+    { "name": "Anime4K\\Anime4K_Upscale_GAN_x2_M" },
+    { "name": "Anime4K\\Anime4K_Upscale_GAN_x2_M" }
+  ]
+}

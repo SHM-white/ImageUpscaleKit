@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "description": "Magpie-style scaling modes for static images. Each effect item uses Magpie fields: name, scalingType, scale, parameters. Modes may additionally define tiers or autoFamily for convenient quality-level switching.",
+  "tierOrder": [
+    "US",
+    "S",
+    "M",
+    "L",
+    "VL",
+    "UL",
+    "2x",
+    "3x",
+    "4x",
+    "Default"
+  ],
+  "scalingModes": [
+    {
+      "name": "Lanczos",
+      "description": "Lanczos, fixed output scale for still images.",
+      "defaultTier": "2x",
+      "tiers": {
+        "2x": {
+          "effects": [
+            {
+              "name": "Lanczos",
+              "scalingType": 0,
+              "scale": {
+                "x": 2.0,
+                "y": 2.0
+              }
+            }
+          ]
+        },
+        "3x": {
+          "effects": [
+            {
+              "name": "Lanczos",
+              "scalingType": 0,
+              "scale": {
+                "x": 3.0,
+                "y": 3.0
+              }
+            }
+          ]
+        },
+        "4x": {
+          "effects": [
+            {
+              "name": "Lanczos",
+              "scalingType": 0,
+              "scale": {
+                "x": 4.0,
+                "y": 4.0
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "FSR",
+      "description": "AMD FSR EASU + RCAS. Sharpness follows Magpie default (0.87).",
+      "defaultTier": "2x",
+      "tiers": {
+        "2x": {
+          "effects": [
+            {
+              "name": "FSR\\FSR_EASU",
+              "scalingType": 0,
+              "scale": {
+                "x": 2.0,
+                "y": 2.0
+              }
+            },
+            {
+              "name": "FSR\\FSR_RCAS",
+              "parameters": {
+                "sharpness": 0.87
+              }
+            }
+          ]
+        },
+        "3x": {
+          "effects": [
+            {
+              "name": "FSR\\FSR_EASU",
+              "scalingType": 0,
+              "scale": {
+                "x": 3.0,
+                "y": 3.0
+              }
+            },
+            {
+              "name": "FSR\\FSR_RCAS",
+              "parameters": {
+                "sharpness": 0.87
+              }
+            }
+          ]
+        },
+        "4x": {
+          "effects": [
+            {
+              "name": "FSR\\FSR_EASU",
+              "scalingType": 0,
+              "scale": {
+                "x": 4.0,
+                "y": 4.0
+              }
+            },
+            {
+              "name": "FSR\\FSR_RCAS",
+              "parameters": {
+                "sharpness": 0.87
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "FSRCNNX",
+      "description": "Magpie built-in FSRCNNX mode.",
+      "effects": [
+        {
+          "name": "FSRCNNX\\FSRCNNX"
+        }
+      ]
+    },
+    {
+      "name": "CuNNy",
+      "description": "Magpie built-in CuNNy mode.",
+      "effects": [
+        {
+          "name": "CuNNy2\\CuNNy-4x12-NVL"
+        }
+      ]
+    },
+    {
+      "name": "Anime4K",
+      "description": "Anime4K Upscale Denoise. Quality level is selected from installed HLSL variants.",
+      "autoFamily": "Anime4K\\Anime4K_Upscale_Denoise",
+      "defaultTier": "L"
+    },
+    {
+      "name": "Anime4K Restore",
+      "description": "Anime4K Restore family. Quality level is selected from installed HLSL variants.",
+      "autoFamily": "Anime4K\\Anime4K_Restore",
+      "defaultTier": "L"
+    },
+    {
+      "name": "Anime4K Restore Soft",
+      "description": "Anime4K Restore Soft family. Quality level is selected from installed HLSL variants.",
+      "autoFamily": "Anime4K\\Anime4K_Restore_Soft",
+      "defaultTier": "L"
+    },
+    {
+      "name": "Anime4K GAN x2",
+      "description": "Anime4K GAN x2 family. Quality level is selected from installed HLSL variants.",
+      "autoFamily": "Anime4K\\Anime4K_Upscale_GAN_x2",
+      "defaultTier": "M"
+    },
+    {
+      "name": "Integer Scale",
+      "description": "Nearest-neighbor integer scaling.",
+      "defaultTier": "2x",
+      "tiers": {
+        "2x": {
+          "effects": [
+            {
+              "name": "Nearest",
+              "scalingType": 0,
+              "scale": {
+                "x": 2.0,
+                "y": 2.0
+              }
+            }
+          ]
+        },
+        "3x": {
+          "effects": [
+            {
+              "name": "Nearest",
+              "scalingType": 0,
+              "scale": {
+                "x": 3.0,
+                "y": 3.0
+              }
+            }
+          ]
+        },
+        "4x": {
+          "effects": [
+            {
+              "name": "Nearest",
+              "scalingType": 0,
+              "scale": {
+                "x": 4.0,
+                "y": 4.0
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

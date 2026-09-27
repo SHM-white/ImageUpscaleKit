@@ -1,0 +1,7 @@
+{
+  "name": "Lanczos x2",
+  "description": "Magpie built-in Lanczos scaler at 2x.",
+  "effects": [
+    { "name": "Lanczos", "scalingType": 0, "scale": { "x": 2.0, "y": 2.0 } }
+  ]
+}

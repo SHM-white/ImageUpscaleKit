@@ -1,0 +1,7 @@
+{
+  "name": "Custom Chain",
+  "description": "Edit this file. Effect names are relative to Magpie's effects directory, without .hlsl.",
+  "effects": [
+    { "name": "Anime4K\\Anime4K_Upscale_GAN_x2_M" }
+  ]
+}

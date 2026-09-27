@@ -1,0 +1,9 @@
+Image Upscale Kit v4
+
+- MagpieFX 的 mode 现在优先直接兼容官方 Magpie 的 config.json
+- 仍保留 magpie_modes.json 作为备用方案源
+- GUI “打开 Magpie 配置”按钮现在优先打开官方 config.json
+- 预览与状态栏会显示当前 mode 的来源
+- 处理时临时写入运行配置，结束后恢复原 config.json
+- 保留 family / effect 两种选择方式
+- 继续保留输入/输出文件夹选择修复（pwsh -STA）

@@ -1,0 +1,12 @@
+Image Upscale Kit v3
+====================
+- MagpieFX now scans every *.hlsl under the installed official Magpie effects tree.
+- Added selection modes: mode / family / effect.
+- Added automatic quality-tier grouping for suffixes: US, S, M, L, VL, UL.
+- Added magpie_modes.json with Magpie-style effect chains, parameters and scale fields.
+- Added fixed 2x/3x/4x variants for Lanczos, FSR and Integer Scale.
+- Kept Magpie official-style defaults such as FSRCNNX, CuNNy and Anime4K.
+- Fixed input/output folder dialogs by launching GUI with PowerShell 7 STA.
+- Added separate output-file and output-folder buttons.
+- Replaced fragile Start-Process argument joining with ProcessStartInfo.ArgumentList for pwsh child processes.
+- Legacy v2 magpie_presets are retained for CLI backward compatibility.

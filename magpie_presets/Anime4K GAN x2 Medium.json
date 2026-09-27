@@ -1,0 +1,7 @@
+{
+  "name": "Anime4K GAN x2 Medium",
+  "description": "Anime4K GAN x2 Medium, fixed 2x output.",
+  "effects": [
+    { "name": "Anime4K\\Anime4K_Upscale_GAN_x2_M" }
+  ]
+}
