@@ -31,9 +31,10 @@
   "output_suffix": "_upscaled",
   "anime4kcpp": {
     "backend_path": "bin\\anime4kcpp\\ac_cli.exe",
-    "model": "acnet-f8b18",
+    "model": "acnet-legacy-gan",
     "processor": "cuda",
     "device": 0,
-    "existing_output": "rename"
+    "existing_output": "rename",
+    "batch_size": 16
   }
 }

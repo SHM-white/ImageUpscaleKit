@@ -4,7 +4,8 @@ param(
     [string]$Model,
     [ValidateSet('auto','cpu','opencl','cuda')] [string]$Processor,
     [ValidateRange(-1,65535)] [int]$Device = -1,
-    [ValidateSet('error','overwrite','rename')] [string]$ExistingOutput
+    [ValidateSet('error','overwrite','rename')] [string]$ExistingOutput,
+    [ValidateRange(1,256)] [int]$BatchSize
 )
 $ErrorActionPreference = 'Stop'
 $cfg = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'config.json') -Raw | ConvertFrom-Json
@@ -19,6 +20,8 @@ if ($Device -lt 0) { $Device = if ($null -ne $settings.device) { [int]$settings.
 if ($Device -lt 0) { throw 'Device must be nonnegative.' }
 if (-not $ExistingOutput) { $ExistingOutput = if ($settings.existing_output) { [string]$settings.existing_output } else { 'error' } }
 if ($ExistingOutput -notin @('error','overwrite','rename')) { throw "Unsupported existing-output policy: $ExistingOutput" }
+if (-not $PSBoundParameters.ContainsKey('BatchSize')) { $BatchSize = if ($null -ne $settings.batch_size) { [int]$settings.batch_size } else { 16 } }
+if ($BatchSize -lt 1 -or $BatchSize -gt 256) { throw 'BatchSize must be between 1 and 256.' }
 $item = Get-Item -LiteralPath $InputPath
 $extensions = @('.png','.jpg','.jpeg','.bmp','.webp','.tif','.tiff')
 $files = if ($item.PSIsContainer) { @(Get-ChildItem -LiteralPath $item.FullName -File | Where-Object { $_.Extension.ToLowerInvariant() -in $extensions } | Sort-Object Name) } else { @($item) }
@@ -57,41 +60,62 @@ $logDir = Join-Path $PSScriptRoot 'logs'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $log = Join-Path $logDir ('acnet-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '.log')
 Write-Host "Engine: Anime4KCPP / ACNet`nModel: $Model`nScale: 2x`nProcessor: $Processor / Device: $Device`nLog: $log"
-$index = 0
-foreach ($job in $jobs) {
-    $index++
-    $parent = Split-Path -Parent $job.Destination
-    New-Item -ItemType Directory -Force -Path $parent | Out-Null
-    # The native image loader cannot reliably open Unicode filenames on Windows.
-    # Use ASCII relative names inside a private working directory, then move the result.
+$jobs = @($jobs)
+$batchCount = [int][Math]::Ceiling($jobs.Count / [double]$BatchSize)
+Write-Host "Batch size: $BatchSize / Batches: $batchCount (one image worker per process)"
+for ($offset = 0; $offset -lt $jobs.Count; $offset += $BatchSize) {
+    $batchNumber = [int]($offset / $BatchSize) + 1
+    $last = [Math]::Min($offset + $BatchSize, $jobs.Count) - 1
+    $batch = @($jobs[$offset..$last])
     $work = Join-Path $PSScriptRoot ('temp/acnet-job-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $work | Out-Null
-    $stagedInput = 'input' + [IO.Path]::GetExtension($job.Source).ToLowerInvariant()
-    $temporaryOutput = Join-Path $work 'output.png'
-    $psi = [Diagnostics.ProcessStartInfo]::new()
-    $psi.FileName = $backend
-    $psi.WorkingDirectory = $work
-    $psi.UseShellExecute = $false
-    $psi.CreateNoWindow = $true
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    foreach ($arg in @('-i',$stagedInput,'-o','output.png','-m',$Model,'-p',$Processor,'-d',[string]$Device,'-f','2')) { [void]$psi.ArgumentList.Add($arg) }
-    Write-Host "[$index/$($files.Count)] $($job.Source)"
     $process = $null
     try {
-        Copy-Item -LiteralPath $job.Source -Destination (Join-Path $work $stagedInput)
+        # ASCII relative paths work around the native image loader's Unicode limitation.
+        $inputs = @()
+        $outputs = @()
+        for ($i = 0; $i -lt $batch.Count; $i++) {
+            $inputs += ('in{0:D3}' -f $i) + [IO.Path]::GetExtension($batch[$i].Source).ToLowerInvariant()
+            $outputs += 'out{0:D3}.png' -f $i
+            Copy-Item -LiteralPath $batch[$i].Source -Destination (Join-Path $work $inputs[$i])
+        }
+        $psi = [Diagnostics.ProcessStartInfo]::new()
+        $psi.FileName = $backend
+        $psi.WorkingDirectory = $work
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        # One image-processing worker avoids initializing a model for many parallel workers.
+        $arguments = @('-i') + $inputs + @('-o') + $outputs + @('-m',$Model,'-p',$Processor,'-d',[string]$Device,'-f','2','-t','1')
+        foreach ($arg in $arguments) { [void]$psi.ArgumentList.Add($arg) }
+        $header = "Batch $batchNumber/${batchCount}: $($batch.Count) images"
+        Write-Host $header
+        $header | Add-Content -LiteralPath $log -Encoding utf8
+        for ($i = 0; $i -lt $batch.Count; $i++) {
+            "$($inputs[$i]) = $($batch[$i].Source) -> $($batch[$i].Destination)" | Add-Content -LiteralPath $log -Encoding utf8
+        }
         $process = [Diagnostics.Process]::Start($psi)
         $stdout = $process.StandardOutput.ReadToEndAsync()
         $stderr = $process.StandardError.ReadToEndAsync()
         $process.WaitForExit()
         $details = $stdout.GetAwaiter().GetResult() + $stderr.GetAwaiter().GetResult()
-        "[$index] $($job.Source)`n$details" | Add-Content -LiteralPath $log -Encoding utf8
+        $details | Add-Content -LiteralPath $log -Encoding utf8
         if ($details) { Write-Host $details.Trim() }
         if ($process.ExitCode -ne 0) { throw "Anime4KCPP failed (exit $($process.ExitCode)). Log: $log" }
-        if (-not (Test-Path -LiteralPath $temporaryOutput) -or (Get-Item -LiteralPath $temporaryOutput).Length -eq 0) { throw "Anime4KCPP produced no image. Log: $log" }
-        # Replace only after successful inference; never delete an existing result first.
-        [IO.File]::Move($temporaryOutput, $job.Destination, ($ExistingOutput -eq 'overwrite'))
-        Write-Host "Saved: $($job.Destination)" -ForegroundColor Green
+        # Validate every output before replacing any previous result in this batch.
+        for ($i = 0; $i -lt $batch.Count; $i++) {
+            $temporaryOutput = Join-Path $work $outputs[$i]
+            if (-not (Test-Path -LiteralPath $temporaryOutput) -or (Get-Item -LiteralPath $temporaryOutput).Length -eq 0) {
+                throw "Anime4KCPP produced no image for $($batch[$i].Source). Batch $batchNumber was not saved. Log: $log"
+            }
+        }
+        for ($i = 0; $i -lt $batch.Count; $i++) {
+            $parent = Split-Path -Parent $batch[$i].Destination
+            New-Item -ItemType Directory -Force -Path $parent | Out-Null
+            [IO.File]::Move((Join-Path $work $outputs[$i]), $batch[$i].Destination, ($ExistingOutput -eq 'overwrite'))
+            Write-Host "Saved: $($batch[$i].Destination)" -ForegroundColor Green
+        }
     } finally {
         if ($process) { if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit() }; $process.Dispose() }
         $resolved = [IO.Path]::GetFullPath($work)

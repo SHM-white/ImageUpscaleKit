@@ -31,7 +31,7 @@ pwsh -NoProfile -File .\Setup-Anime4KCPP.ps1
 pwsh -NoProfile -File .\Upscale.ps1 -Engine anime4kcpp -InputPath .\input -Model acnet-legacy-gan -Scale 2 -AcProcessor auto -AcDevice 0
 ```
 
-运行日志在 `logs/acnet-*.log`。为绕过官方图片加载器的中文路径问题，脚本在独立临时目录中使用英文文件名，成功后再移动到目标路径；检查退出码及输出存在性，因为部分原生加载错误仍返回 0。
+运行日志在 `logs/acnet-*.log`。为绕过官方图片加载器的中文路径问题，脚本按批次在独立临时目录中使用英文文件名，同批全部生成成功后再移动到目标路径；检查退出码及输出存在性，因为部分原生加载错误仍返回 0。
 
 回归测试：`pwsh -NoProfile -File .\tests\Smoke-Anime4KCPP.ps1`。
 
@@ -189,3 +189,15 @@ ImageUpscaleKit-v4
 ```
 
 ACNet 命令行输出策略：`-ExistingOutput error|overwrite|rename`；省略时读取 `config.json` 的 `anime4kcpp.existing_output`。此选项仅用于 Anime4KCPP。
+
+### Anime4KCPP 分批处理
+
+GUI 的“每批最多图片”可设为 1～256，默认 16；配置键为 `anime4kcpp.batch_size`，命令行参数为 `-AcBatchSize`。
+
+```powershell
+.\Upscale.ps1 -Engine anime4kcpp -InputPath .\input -AcBatchSize 16 -ExistingOutput rename
+```
+
+每批启动一次 CLI，一次传入该批的所有图片，并指定 `-t 1` 使用一个图片工作线程，减少反复启动及初始化开销。例如 11 张、每批 4 张，会分为 4+4+3，共启动 3 次。设为 1 则恢复逐图启动。
+
+这个设置限制每次交给 CLI 的图片数量，不是同时处理数或显存硬上限。日志记录批次和临时文件与原图的对应关系。批内任一图片未生成时，该批不会保存结果；此前已完成的批次保留。

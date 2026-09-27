@@ -19,6 +19,7 @@ param(
     [ValidateSet('auto','cpu','opencl','cuda')] [string]$AcProcessor,
     [ValidateRange(-1,65535)] [int]$AcDevice = -1,
     [ValidateSet('error','overwrite','rename')] [string]$ExistingOutput,
+    [ValidateRange(1,256)] [int]$AcBatchSize,
     [string]$MagpiePreset
 )
 
@@ -28,6 +29,7 @@ $ConfigPath = Join-Path $Root 'config.json'
 $Cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 if (-not $Engine) { $Engine = [string]$Cfg.engine }
 
+if ($PSBoundParameters.ContainsKey('AcBatchSize') -and $Engine -ne 'anime4kcpp') { throw 'AcBatchSize applies only to Anime4KCPP.' }
 if ($ExistingOutput -and $Engine -ne 'anime4kcpp') { throw 'ExistingOutput currently applies only to the Anime4KCPP backend.' }
 if ($Engine -eq 'anime4kcpp') {
     if ($Scale -and $Scale -notin @('auto','2')) { throw 'Anime4KCPP currently supports 2x output in this kit.' }
@@ -36,6 +38,7 @@ if ($Engine -eq 'anime4kcpp') {
     if ($Model) { $acParams.Model=$Model }
     if ($AcProcessor) { $acParams.Processor=$AcProcessor }
     if ($ExistingOutput) { $acParams.ExistingOutput=$ExistingOutput }
+    if ($PSBoundParameters.ContainsKey('AcBatchSize')) { $acParams.BatchSize=$AcBatchSize }
     & (Join-Path $Root 'Anime4KCPP.ps1') @acParams
     return
 }

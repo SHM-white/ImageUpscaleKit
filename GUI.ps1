@@ -10,6 +10,7 @@ function Load-Cfg {
         $loaded | Add-Member -NotePropertyName anime4kcpp -NotePropertyValue ([pscustomobject]@{backend_path='bin\anime4kcpp\ac_cli.exe';model='acnet-legacy-gan';processor='auto';device=0})
     }
     if (-not $loaded.anime4kcpp.PSObject.Properties['existing_output']) { $loaded.anime4kcpp | Add-Member -NotePropertyName existing_output -NotePropertyValue 'error' }
+    if (-not $loaded.anime4kcpp.PSObject.Properties['batch_size']) { $loaded.anime4kcpp | Add-Member -NotePropertyName batch_size -NotePropertyValue 16 }
     return $loaded
 }
 function Save-Cfg($c) { $c | ConvertTo-Json -Depth 12 | Set-Content $ConfigPath -Encoding utf8NoBOM }
@@ -86,6 +87,8 @@ ALabel '设备编号' 310 76
 $acDevice=[Windows.Forms.NumericUpDown]::new();$acDevice.Location=[Drawing.Point]::new(415,72);$acDevice.Maximum=65535;$acDevice.Value=[decimal]$cfg.anime4kcpp.device;$grpA.Controls.Add($acDevice)
 ALabel '直接放大 2 倍，无需预放大或窗口截图。输出为 PNG。' 15 118 830
 ALabel 'ACNet / ARNet / ArtCNN / FSRCNNX 全系列；具体模型以已安装后端为准。' 15 150 830
+ALabel '每批最多图片' 400 186 110
+$acBatchSize=[Windows.Forms.NumericUpDown]::new();$acBatchSize.Location=[Drawing.Point]::new(520,182);$acBatchSize.Minimum=1;$acBatchSize.Maximum=256;$acBatchSize.Value=[Math]::Clamp([int]$cfg.anime4kcpp.batch_size,1,256);$grpA.Controls.Add($acBatchSize)
 ALabel '已有文件' 15 186
 $acExisting=[Windows.Forms.ComboBox]::new();$acExisting.DropDownStyle='DropDownList';$acExisting.Location=[Drawing.Point]::new(120,182);$acExisting.Size=[Drawing.Size]::new(235,25);$grpA.Controls.Add($acExisting)
 $acExisting.Items.AddRange(@('停止并提示','覆盖已有文件','自动加序号（_1、_2…）'))
@@ -205,6 +208,7 @@ $saveAction={
         $cfg.anime4kcpp.model=$acModel.Text
         $cfg.anime4kcpp.processor=$acProcessor.Text
         $cfg.anime4kcpp.device=[int]$acDevice.Value
+        $cfg.anime4kcpp.batch_size=[int]$acBatchSize.Value
         $cfg.anime4kcpp.existing_output=$acOutputPolicies[$acExisting.SelectedIndex]
         if($model.Text){$cfg.ncnn.model=$model.Text}
         $cfg.ncnn.scale=$scale.Text
@@ -230,7 +234,7 @@ $run.Add_Click({
     $a=@('-NoProfile','-File',(Join-Path $Root 'Upscale.ps1'),'-InputPath',$inputBox.Text,'-Engine',$engine.Text)
     if($outputBox.Text){$a+=@('-OutputPath',$outputBox.Text)}
     if($engine.Text -eq 'anime4kcpp'){
-        $a+=@('-Model',$acModel.Text,'-Scale','2','-AcProcessor',$acProcessor.Text,'-AcDevice',[string]$acDevice.Value,'-ExistingOutput',$acOutputPolicies[$acExisting.SelectedIndex])
+        $a+=@('-Model',$acModel.Text,'-Scale','2','-AcProcessor',$acProcessor.Text,'-AcDevice',[string]$acDevice.Value,'-AcBatchSize',[string]$acBatchSize.Value,'-ExistingOutput',$acOutputPolicies[$acExisting.SelectedIndex])
     } elseif($engine.Text-eq'ncnn'){
         $a+=@('-Model',$model.Text,'-Scale',$scale.Text,'-Tile',$tile.Text,'-Gpu',$gpu.Text,'-Threads',$threads.Text)
         if($tta.Checked){$a+='-Tta'}else{$a+='-NoTta'}
