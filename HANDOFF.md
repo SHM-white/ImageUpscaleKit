@@ -1,5 +1,16 @@
 # ImageUpscaleKit 交接文档
 
+## Magpie 原生快捷键截图更新（2026-10-15）
+
+- 新增 `Setup-Magpie.ps1`，`Setup.cmd -Engine magpie` 可仅升级 Magpie；固定官方 v0.13.0-preview02 x64，校验 SHA-256。替换前完整备份到 `bin/magpie-backup-*`，保留 config 和额外的自定义 HLSL/include。
+- 当前本机已升级，旧安装在 `bin/magpie-backup-20261015-223545-14686bf4`。
+- `MagpieBridge.ps1` 使用 `Alt+Shift+S`，删除鼠标点击和工具栏坐标逻辑。临时配置写入与启动纳入 try/finally，结束后按字节恢复原配置。
+- v0.13 的截图设置改为 profile 级字段：`screenshotsDir` / `screenshotFilenameTemplate`；运行时移除会覆盖它们的旧 overlay 字段。模板 `%WT%` 对应每张图片的唯一窗口标题。
+- 每个任务使用独立截图目录，按标题匹配 PNG，等待独占读取、PNG IEND 和解码验证，避免取错图或移动未写完的文件。
+- 预览版字符串版本为 `0.13.0-preview02`，但 Win32 数值版本仍为 `0.12.101.0`，版本检查必须解析字符串。
+- `tests/Smoke-Magpie.ps1 -Integration` 已实测通过：单图、两张不同内容的批量图片、中文路径、官方配置 mode、损坏输入失败，以及成功/失败后的配置 SHA-256 不变。基础测试另覆盖旧/新 schema、快捷键版本判断和截图不完整/被占用/超时。
+- 保留的尺寸限制：原生快捷键保存最后一个渲染 effect（可能包含 Magpie 自动追加的 Bicubic），输出大小受窗口尺寸影响。此次实测 320×240 的 Lanczos x2 预设最终截图为 520×390，并非固定 2×。README 已说明；不要把原生截图成功等同于精确倍率文件超分。
+
 ## 补充修复（2026-09-28）
 
 - 修复 Magpie 启动时报 `SelectionType` 收到 `-OutputPath` 的参数校验错误。

@@ -4,7 +4,27 @@ Windows 便携图片超分工具，支持三个后端：
 
 - **Anime4KCPP / ACNet**：直接读取图片并输出 2× PNG，支持单图、批处理、CPU / CUDA / OpenCL。
 - **NCNN / Real-ESRGAN**：`.param + .bin` 模型。
-- **MagpieFX**：直接调用官方 Magpie v0.12.1，动态扫描 `effects\` 下全部 `.hlsl`，并且**优先直接兼容 Magpie 自己的 `config.json`**。
+- **MagpieFX**：直接调用官方 Magpie v0.13.0-preview02（预览版），通过 `Alt+Shift+S` 保存原生超分截图，动态扫描全部 HLSL，并且**优先直接兼容 Magpie 自己的 `config.json`**。
+
+## Magpie 快捷键截图流程（2026-10-15）
+
+仅升级 Magpie：`Setup.cmd -Engine magpie`，或 `pwsh -NoProfile -File .\Setup-Magpie.ps1`。安装器固定下载官方 v0.13.0-preview02 并校验 SHA-256，原安装完整备份到 `bin\magpie-backup-*`，保留配置和额外的自定义 effect/include 文件。官方同名文件使用新版，本地修改可从备份取回。升级前关闭正在运行的便携 Magpie。
+
+GUI 选择 `magpie` 后，单图和文件夹批量处理均使用以下流程：
+
+1. 以 1:1 图片窗口交给 Magpie，`Alt+Shift+Q` 启动窗口化缩放。
+2. 等待渲染，通过 `Alt+Shift+S` 保存最后一个 effect 的输出；无需移动鼠标或校准工具栏位置。
+3. 根据本张图片的唯一窗口标题匹配截图，等待 PNG 写完且可读取后保存到输出路径。
+4. 关闭缩放并处理下一张；成功或运行中出错均恢复原始配置文件的完整字节。
+
+尺寸限制：原生快捷键截取的是 Magpie 最终渲染结果，包含其为适配缩放窗口追加的重采样。因此选择名称含 `2x` / `4x` 的 effect 或预设不保证输出文件恰好为对应倍数；窗口大小和显示环境仍会影响最终尺寸。需要固定 2× 文件输出时可使用 Anime4KCPP 后端。
+
+运行时适配 0.13 的 profile 级截图目录和文件名模板，并移除临时配置中会覆盖它们的旧 overlay 字段。截图按任务隔离在 `temp\magpie_screenshots\`，超时可检查该目录及 Magpie 日志。低于 0.13 的后端会提示升级。
+
+版本依据：[官方预览版发布页](https://github.com/Blinue/Magpie/releases/tag/v0.13.0-preview02)、[快捷键更新说明](https://github.com/Blinue/Magpie/releases/tag/v0.13.0-preview01)。
+
+基础回归：`pwsh -NoProfile -File .\tests\Smoke-Magpie.ps1`。
+真实窗口/GPU 测试：追加 `-Integration`（会短暂显示图片与缩放窗口，请保持桌面解锁且避免操作测试窗口）。
 
 
 ## ACNet 2×（新增，当前默认）
@@ -181,12 +201,7 @@ ImageUpscaleKit-v4
 
 - MagpieFX 后端目前通过 **官方 Magpie 的窗口捕获 + 原生 Effect 渲染 + 原生截图** 完成，所以 HLSL 兼容性尽量与官方保持一致。
 - 处理期间不要主动操作 Magpie 缩放窗口。
-- 如果截图按钮位置因 Magpie 版本变化而失效，可在 `config.json` 调整：
-
-```json
-"toolbar_x_offset_dip": -106,
-"toolbar_y_dip": 15
-```
+- 截图快捷键固定使用 `Alt+Shift+S`，请避免被其他程序占用。`screenshot_wait_ms` 控制截图等待上限；较慢的 shader 可增加 `scale_wait_ms`。旧的工具栏坐标设置已不再使用。
 
 ACNet 命令行输出策略：`-ExistingOutput error|overwrite|rename`；省略时读取 `config.json` 的 `anime4kcpp.existing_output`。此选项仅用于 Anime4KCPP。
 

@@ -24,8 +24,6 @@
     "startup_wait_ms": 1200,
     "scale_wait_ms": 1200,
     "screenshot_wait_ms": 8000,
-    "toolbar_x_offset_dip": -106,
-    "toolbar_y_dip": 15,
     "family": "ACNet"
   },
   "output_suffix": "_upscaled",

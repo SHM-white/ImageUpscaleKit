@@ -172,7 +172,12 @@ function Status {
     $m=Test-Path (RPath $cfg.magpie.exe_path)
     $count=@(Get-IUKMagpieEffects (EffectsDir)).Count
     $source=Get-IUKModeSourceLabel (ConfigFile) (ModeFile)
-    $status.Text="ACNet: $(if($acInstalled){'已安装'}else{'未安装'})    NCNN: $(if($n){'已安装'}else{'未安装'})    Magpie: $(if($m){'已安装'}else{'未安装'})    HLSL: $count`r`n方案来源: $source    GUI 使用 STA；输入/输出文件夹选择已修复。"
+    $magpieStatus = '未安装'
+    if ($m) {
+        $version = (Get-Item -LiteralPath (RPath $cfg.magpie.exe_path)).VersionInfo
+        $magpieStatus = if (Test-IUKMagpieScreenshotHotkey $version.FileVersion) { $version.FileVersion } else { '需升级至 0.13（Setup.cmd -Engine magpie）' }
+    }
+    $status.Text="ACNet: $(if($acInstalled){'已安装'}else{'未安装'})    NCNN: $(if($n){'已安装'}else{'未安装'})    Magpie: $magpieStatus    HLSL: $count`r`n方案来源: $source    Magpie 使用 Alt+Shift+S 原生截图。"
 }
 
 RefreshN

@@ -1,5 +1,6 @@
-param([ValidateSet('all','anime4kcpp')] [string]$Engine = 'all')
+param([ValidateSet('all','anime4kcpp','magpie')] [string]$Engine = 'all')
 $ErrorActionPreference='Stop'
+if ($Engine -eq 'magpie') { & (Join-Path $PSScriptRoot 'Setup-Magpie.ps1'); return }
 & (Join-Path $PSScriptRoot 'Setup-Anime4KCPP.ps1')
 if ($Engine -eq 'anime4kcpp') { return }
 $Root=Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -17,21 +18,9 @@ try {
     Get-ChildItem $d1 -Recurse -File | Where-Object { $_.Extension -in '.param','.bin' } | ForEach-Object { Copy-Item $_.FullName (Join-Path $ModelDir $_.Name) -Force }
     Get-ChildItem $exe.Directory.FullName -Filter '*.dll' -File -ErrorAction SilentlyContinue | ForEach-Object { Copy-Item $_.FullName (Join-Path $BinDir $_.Name) -Force }
 
-    Write-Host '[2/4] Magpie v0.12.1 x64 portable...'
-    $u2='https://github.com/Blinue/Magpie/releases/download/v0.12.1/Magpie-v0.12.1-x64.zip'
-    $z2=Join-Path $Temp 'magpie.zip'; Invoke-WebRequest $u2 -OutFile $z2
-    $d2=Join-Path $Temp 'magpie'; Expand-Archive $z2 $d2 -Force
-    $mexe=Get-ChildItem $d2 -Recurse -Filter 'Magpie.exe' | Select-Object -First 1
-    if (-not $mexe) { throw 'Magpie.exe was not found in the official archive.' }
-    $MagpieDest=Join-Path $BinDir 'magpie'; if (Test-Path $MagpieDest) { Remove-Item $MagpieDest -Recurse -Force }
-    New-Item -ItemType Directory -Force -Path $MagpieDest | Out-Null
-    Copy-Item (Join-Path $mexe.Directory.FullName '*') $MagpieDest -Recurse -Force
-
-    Write-Host '[3/4] Preparing portable Magpie config/effect folders...'
-    New-Item -ItemType Directory -Force -Path (Join-Path $MagpieDest 'config') | Out-Null
-    if (-not (Test-Path (Join-Path $MagpieDest 'effects'))) { Write-Warning 'Magpie effects folder was not found. Check the extracted release.' }
-
-    Write-Host '[4/4] Verify all Magpie HLSL effects...'
+    & (Join-Path $PSScriptRoot 'Setup-Magpie.ps1')
+    $MagpieDest=Join-Path $BinDir 'magpie'
+    Write-Host 'Verify all Magpie HLSL effects...'
     $effects=@(Get-ChildItem (Join-Path $MagpieDest 'effects') -Recurse -Filter '*.hlsl' -File -ErrorAction SilentlyContinue)
     if(-not $effects -or $effects.Count -eq 0){throw 'Magpie HLSL effects were not found in the official archive.'}
     Write-Host ("  Found {0} HLSL effects." -f $effects.Count)

@@ -68,12 +68,7 @@ function New-SyntheticMagpieConfig($Effects,$ShotDir) {
         showNotifyIcon = $false
         scalingModes = @([pscustomobject]@{ name='ImageUpscaleKit'; effects=$effectItems })
         profiles = @((New-DefaultProfile))
-        overlay = [pscustomobject]@{
-            fullscreenInitialToolbarState = 1
-            windowedInitialToolbarState = 1
-            screenshotsDir = $ShotDir
-            windows = [pscustomobject]@{}
-        }
+        overlay = [pscustomobject]@{ windows = [pscustomobject]@{} }
     }
 }
 function Build-MagpieConfigForModeFromOfficial([string]$SourceConfigFile,[string]$ModeName,[string]$ShotDir) {
@@ -100,9 +95,6 @@ function Build-MagpieConfigForModeFromOfficial([string]$SourceConfigFile,[string
     Set-ObjProp $cfgObj.shortcuts 'toolbar' 3140
 
     if (-not $cfgObj.overlay) { Set-ObjProp $cfgObj 'overlay' ([pscustomobject]@{}) }
-    Set-ObjProp $cfgObj.overlay 'fullscreenInitialToolbarState' 1
-    Set-ObjProp $cfgObj.overlay 'windowedInitialToolbarState' 1
-    Set-ObjProp $cfgObj.overlay 'screenshotsDir' $ShotDir
     if (-not $cfgObj.overlay.windows) { Set-ObjProp $cfgObj.overlay 'windows' ([pscustomobject]@{}) }
 
     Set-ObjProp $cfgObj 'showNotifyIcon' $false
@@ -115,9 +107,13 @@ $MagpieExe = Resolve-KitPath ([string]$mag.exe_path)
 $EffectsDir = Resolve-KitPath ([string]$mag.effects_dir)
 $ModeFile = Resolve-KitPath ([string]$mag.mode_file)
 $OfficialConfigFile = if($mag.config_file){ Resolve-KitPath ([string]$mag.config_file) } else { Join-Path (Split-Path -Parent $MagpieExe) 'config\config.json' }
-$ShotDir = Join-Path $Root 'temp\magpie_screenshots'
+$ShotDir = Join-Path $Root ('temp\magpie_screenshots\' + [guid]::NewGuid().ToString('N'))
 $HostScript = Join-Path $Root 'ImageHost.ps1'
 if (-not (Test-Path -LiteralPath $MagpieExe)) { throw "Magpie backend is not installed. Run Setup.cmd first.`nExpected: $MagpieExe" }
+$magpieVersion = (Get-Item -LiteralPath $MagpieExe).VersionInfo
+if (-not (Test-IUKMagpieScreenshotHotkey $magpieVersion.FileVersion)) {
+    throw 'Magpie screenshot hotkeys require v0.13.0-preview01 or newer. Run Setup.cmd -Engine magpie to upgrade (existing installation is backed up).'
+}
 if (-not (Test-Path -LiteralPath $InputPath)) { throw "Input does not exist: $InputPath" }
 
 $SelectedEffects = $null
@@ -169,22 +165,15 @@ if ($SelectedEffects) {
     @($SelectedEffects) | ForEach-Object { Write-Host "  $($_.name)" }
 }
 
-# Win32 helpers: find/activate Magpie windows, synthesize hotkeys, click the toolbar screenshot button.
+# Win32 helpers: find/activate Magpie windows and synthesize hotkeys.
 $nativeCode = @'
 using System;
 using System.Runtime.InteropServices;
 public static class IUKWin32 {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string title);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
-    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
-    [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
-    [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
     public const uint KEYUP = 0x0002;
-    public const uint LEFTDOWN = 0x0002;
-    public const uint LEFTUP = 0x0004;
-    public struct RECT { public int Left, Top, Right, Bottom; }
     public static void Hotkey(byte key) {
         keybd_event(0x12,0,0,UIntPtr.Zero); // ALT
         keybd_event(0x10,0,0,UIntPtr.Zero); // SHIFT
@@ -192,11 +181,6 @@ public static class IUKWin32 {
         keybd_event(key,0,KEYUP,UIntPtr.Zero);
         keybd_event(0x10,0,KEYUP,UIntPtr.Zero);
         keybd_event(0x12,0,KEYUP,UIntPtr.Zero);
-    }
-    public static void Click(int x, int y) {
-        SetCursorPos(x,y);
-        mouse_event(LEFTDOWN,0,0,0,UIntPtr.Zero);
-        mouse_event(LEFTUP,0,0,0,UIntPtr.Zero);
     }
 }
 '@
@@ -209,6 +193,8 @@ function Start-PwshChild([object[]]$ArgumentList) {
     $psi.CreateNoWindow=$true
     $psi.RedirectStandardOutput=$true
     $psi.RedirectStandardError=$true
+    $psi.StandardOutputEncoding=[Text.Encoding]::UTF8
+    $psi.StandardErrorEncoding=[Text.Encoding]::UTF8
     foreach($a in $ArgumentList){[void]$psi.ArgumentList.Add([string]$a)}
     return [Diagnostics.Process]::Start($psi)
 }
@@ -246,21 +232,20 @@ if ($foreign) { throw 'Another Magpie instance is running. Close Magpie first, t
 Stop-PortableMagpie
 
 New-Item -ItemType Directory -Force -Path $ShotDir | Out-Null
-Get-ChildItem -LiteralPath $ShotDir -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
 $MagpieDir = Split-Path -Parent $MagpieExe
 $MagpieConfigDir = Join-Path $MagpieDir 'config'
 $TargetMagpieConfigPath = Join-Path $MagpieConfigDir 'config.json'
 New-Item -ItemType Directory -Force -Path $MagpieConfigDir | Out-Null
 $OriginalConfigExisted = Test-Path -LiteralPath $TargetMagpieConfigPath
-$OriginalConfigRaw = if ($OriginalConfigExisted) { Get-Content -LiteralPath $TargetMagpieConfigPath -Raw -Encoding UTF8 } else { $null }
+$OriginalConfigBytes = if ($OriginalConfigExisted) { [IO.File]::ReadAllBytes($TargetMagpieConfigPath) } else { $null }
 
 if ($ConfigBuildMode -eq 'official') {
     $magpieConfig = Build-MagpieConfigForModeFromOfficial $OfficialConfigFile $Mode $ShotDir
 } else {
     $magpieConfig = New-SyntheticMagpieConfig $SelectedEffects $ShotDir
 }
-$magpieConfig | ConvertTo-Json -Depth 15 | Set-Content -LiteralPath $TargetMagpieConfigPath -Encoding utf8NoBOM
+Set-IUKMagpieCaptureConfig $magpieConfig $ShotDir
 
 $InputResolved = [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $InputPath).Path)
 $InputItem = Get-Item -LiteralPath $InputResolved
@@ -284,15 +269,17 @@ if ($files.Count -eq 0) { throw 'No supported images found.' }
 if ($InputItem.PSIsContainer -and -not $OutputPath) { $OutputPath = Join-Path $InputItem.Parent.FullName ($InputItem.Name + $suffix) }
 if ($InputItem.PSIsContainer) { New-Item -ItemType Directory -Force -Path $OutputPath | Out-Null }
 
-$magpieProc = Start-Process -FilePath $MagpieExe -WorkingDirectory $MagpieDir -ArgumentList '-t' -PassThru
-Start-Sleep -Milliseconds ([int]$mag.startup_wait_ms)
-
+$magpieProc = $null
 try {
+    $magpieConfig | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $TargetMagpieConfigPath -Encoding utf8NoBOM
+    $magpieProc = Start-Process -FilePath $MagpieExe -WorkingDirectory $MagpieDir -ArgumentList '-t' -WindowStyle Hidden -PassThru
+    Start-Sleep -Milliseconds ([int]$mag.startup_wait_ms)
+    if ($magpieProc.HasExited) { throw "Magpie exited during startup (code $($magpieProc.ExitCode)). Check $MagpieDir\logs." }
+    Write-Host "Capture: Alt+Shift+S (Magpie $($magpieVersion.FileVersion))"
     $index = 0
     foreach ($file in $files) {
         $index++
         Write-Host "[$index/$($files.Count)] MagpieFX: $($file.Name)"
-        Get-ChildItem -LiteralPath $ShotDir -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
         $title = 'IUK_ImageHost_' + [guid]::NewGuid().ToString('N')
         $imageHostProcess = Start-PwshChild @('-NoProfile','-STA','-File',$HostScript,'-ImagePath',$file.FullName,'-WindowTitle',$title)
@@ -316,29 +303,14 @@ try {
             if ($scaleWnd -eq [IntPtr]::Zero) { throw 'Magpie scaling window did not appear.' }
             Start-Sleep -Milliseconds ([int]$mag.scale_wait_ms)
 
-            # v0.12.1 has no screenshot hotkey; click the native toolbar camera button.
-            $rect = [IUKWin32+RECT]::new()
-            if (-not [IUKWin32]::GetWindowRect($scaleWnd, [ref]$rect)) { throw 'Failed to query Magpie scaling window geometry.' }
-            $dpi = [IUKWin32]::GetDpiForWindow($scaleWnd)
-            if ($dpi -le 0) { $dpi = 96 }
-            $factor = $dpi / 96.0
-            $cx = [int](($rect.Left + $rect.Right) / 2 + ([double]$mag.toolbar_x_offset_dip * $factor))
-            $cy = [int]($rect.Top + ([double]$mag.toolbar_y_dip * $factor))
+            # v0.13 native screenshot captures the final effect output without toolbar coordinates.
             [IUKWin32]::SetForegroundWindow($scaleWnd) | Out-Null
-            [IUKWin32]::SetCursorPos($cx, $cy) | Out-Null
-            Start-Sleep -Milliseconds 500
-            [IUKWin32]::Click($cx, $cy)
-
-            $sw = [Diagnostics.Stopwatch]::StartNew()
-            $shot = $null
-            do {
-                $shot = Get-ChildItem -LiteralPath $ShotDir -Filter '*.png' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-                if ($shot) { break }
-                Start-Sleep -Milliseconds 100
-            } while ($sw.ElapsedMilliseconds -lt [int]$mag.screenshot_wait_ms)
-            if (-not $shot) { throw 'Magpie did not create a screenshot. If the toolbar layout changed, adjust toolbar_x_offset_dip / toolbar_y_dip in config.json.' }
+            Start-Sleep -Milliseconds 150
+            [IUKWin32]::Hotkey([byte][char]'S')
+            $shot = Wait-IUKMagpieScreenshot $ShotDir $title ([int]$mag.screenshot_wait_ms)
 
             $dest = Get-OutputForFile $file $OutputPath
+            if ([IO.Path]::GetFullPath($dest) -eq $file.FullName) { throw "Output must not overwrite the input image: $dest" }
             $parent = Split-Path -Parent $dest
             if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
             Move-Item -LiteralPath $shot.FullName -Destination $dest -Force
@@ -355,10 +327,11 @@ try {
 }
 finally {
     if ($magpieProc -and -not $magpieProc.HasExited) { Stop-Process -Id $magpieProc.Id -Force -ErrorAction SilentlyContinue }
+    # Terminate all portable instances before restoring, to prevent a late config write.
+    Stop-PortableMagpie
     if ($OriginalConfigExisted) {
-        Set-Content -LiteralPath $TargetMagpieConfigPath -Value $OriginalConfigRaw -Encoding utf8NoBOM
+        [IO.File]::WriteAllBytes($TargetMagpieConfigPath, $OriginalConfigBytes)
     } else {
         Remove-Item -LiteralPath $TargetMagpieConfigPath -Force -ErrorAction SilentlyContinue
     }
-    Stop-PortableMagpie
 }

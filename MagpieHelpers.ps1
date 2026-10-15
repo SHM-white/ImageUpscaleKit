@@ -190,3 +190,58 @@ function Test-IUKEffectsExist($Effects,[string]$EffectsDir) {
         if ($installed -notcontains [string]$e.name) { throw "Magpie HLSL effect is not installed: $($e.name)" }
     }
 }
+
+function Test-IUKMagpieScreenshotHotkey([string]$FileVersion) {
+    # Preview builds retain 0.12.x in the numeric Win32 version resource.
+    return ($FileVersion -match '^(\d+\.\d+\.\d+)' -and [version]$Matches[1] -ge [version]'0.13.0')
+}
+
+function Set-IUKMagpieCaptureConfig($Config, [string]$ShotDir) {
+    # v0.13 moved screenshot/toolbar settings from overlay to each profile.
+    if (-not $Config.shortcuts) { $Config | Add-Member shortcuts ([pscustomobject]@{}) -Force }
+    $Config.shortcuts | Add-Member takeScreenshot 3155 -Force # Alt+Shift+S
+    foreach ($profile in @($Config.profiles)) {
+        $profile | Add-Member screenshotsDir $ShotDir -Force
+        $profile | Add-Member screenshotFilenameTemplate '%WT%' -Force
+        $profile | Add-Member fullscreenInitialToolbarState 0 -Force
+        $profile | Add-Member windowedInitialToolbarState 0 -Force
+    }
+    # Old global fields would override the new profile settings during migration.
+    if ($Config.overlay) {
+        foreach ($name in @('screenshotsDir','initialToolbarState','fullscreenInitialToolbarState','windowedInitialToolbarState')) {
+            $Config.overlay.PSObject.Properties.Remove($name)
+        }
+    }
+}
+
+function Wait-IUKMagpieScreenshot([string]$ShotDir, [string]$WindowTitle, [int]$TimeoutMs) {
+    Add-Type -AssemblyName System.Drawing
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    do {
+        foreach ($shot in @(Get-ChildItem -LiteralPath $ShotDir -Filter ($WindowTitle + '*.png') -File)) {
+            $stream = $null
+            $image = $null
+            try {
+                # Magpie writes asynchronously: an existing file may still be incomplete.
+                $stream = [IO.File]::Open($shot.FullName, 'Open', 'Read', 'None')
+                if ($stream.Length -lt 20) { continue }
+                [void]$stream.Seek(-12, [IO.SeekOrigin]::End)
+                $tail = [byte[]]::new(12)
+                [void]$stream.Read($tail, 0, 12)
+                if ([Convert]::ToHexString($tail) -ne '0000000049454E44AE426082') { continue }
+                $stream.Position = 0
+                $image = [Drawing.Image]::FromStream($stream, $false, $true)
+                if ($image.Width -gt 0 -and $image.Height -gt 0) { return $shot }
+            } catch [IO.IOException] {
+                # File still held by Magpie; retry until the deadline.
+            } catch [ArgumentException] {
+                # Decoder rejected an incomplete image; retry.
+            } finally {
+                if ($image) { $image.Dispose() }
+                if ($stream) { $stream.Dispose() }
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    } while ($sw.ElapsedMilliseconds -lt $TimeoutMs)
+    throw "Magpie screenshot timed out after $TimeoutMs ms (Alt+Shift+S). Check shortcut conflicts and Magpie logs. Screenshot directory: $ShotDir"
+}
