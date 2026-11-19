@@ -1,0 +1,10 @@
+{
+  "name": "SwinIR Classical DF2K x2 (ComfyUI 原生)",
+  "category": "swinir",
+  "description": "使用 ComfyUI 内置 spandrel 节点运行经典退化 2x 超分模型，适合清晰素材倍增与客观评测。",
+  "workflow": "workflows/spandrel/upscale_model_api_template.json",
+  "workflow_map": "workflows/spandrel/upscale_model_api_template.map.json",
+  "defaults": {
+    "upscale_model": "001_classicalSR_DF2K_s64w8_SwinIR-M_x2.pth"
+  }
+}

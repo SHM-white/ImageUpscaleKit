@@ -1,0 +1,7 @@
+{
+  "input_image": { "class_type": "LoadImage", "input": "image" },
+  "output_node": { "class_type": "SaveImage" },
+  "parameters": {
+    "upscale_model": { "class_type": "UpscaleModelLoader", "input": "model_name", "type": "string" }
+  }
+}

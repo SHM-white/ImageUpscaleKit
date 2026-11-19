@@ -1,6 +1,7 @@
-param([ValidateSet('all','anime4kcpp','magpie')] [string]$Engine = 'all')
+param([ValidateSet('all','anime4kcpp','magpie','realcugan')] [string]$Engine = 'all')
 $ErrorActionPreference='Stop'
 if ($Engine -eq 'magpie') { & (Join-Path $PSScriptRoot 'Setup-Magpie.ps1'); return }
+if ($Engine -eq 'realcugan') { & (Join-Path $PSScriptRoot 'Setup-RealCUGAN.ps1'); return }
 & (Join-Path $PSScriptRoot 'Setup-Anime4KCPP.ps1')
 if ($Engine -eq 'anime4kcpp') { return }
 $Root=Split-Path -Parent $MyInvocation.MyCommand.Path

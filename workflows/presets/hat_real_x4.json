@@ -1,0 +1,10 @@
+{
+  "name": "Real-HAT-GAN Sharper x4 (ComfyUI 原生)",
+  "category": "hat",
+  "description": "使用 ComfyUI 内置 spandrel 节点运行 Real_HAT_GAN_sharper x4（Apache-2.0），针对真实退化/模糊图片锐化重建。",
+  "workflow": "workflows/spandrel/upscale_model_api_template.json",
+  "workflow_map": "workflows/spandrel/upscale_model_api_template.map.json",
+  "defaults": {
+    "upscale_model": "Real_HAT_GAN_sharper.pth"
+  }
+}
