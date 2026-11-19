@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Windows.Forms
+﻿Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 $Root=Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -43,7 +43,7 @@ function Start-Pwsh([object[]]$ArgumentList,[switch]$Wait) {
 }
 
 $cfg=Load-Cfg
-$form=[Windows.Forms.Form]::new(); $form.Text='Image Upscale Kit - ACNet / NCNN / MagpieFX'; $form.Size=[Drawing.Size]::new(930,740); $form.StartPosition='CenterScreen'; $form.Font=[Drawing.Font]::new('Segoe UI',9); $form.FormBorderStyle='FixedDialog'; $form.MaximizeBox=$false
+$form=[Windows.Forms.Form]::new(); $form.Text='Image Upscale Kit - ACNet / NCNN / MagpieFX'; $form.Size=[Drawing.Size]::new(930,740); $form.MinimumSize=[Drawing.Size]::new(930,740); $form.StartPosition='CenterScreen'; $form.Font=[Drawing.Font]::new('Segoe UI',9); $form.FormBorderStyle='Sizable'; $form.MaximizeBox=$true
 function Label($t,$x,$y,$w=120){$c=[Windows.Forms.Label]::new();$c.Text=$t;$c.Location=[Drawing.Point]::new($x,$y);$c.Size=[Drawing.Size]::new($w,24);$form.Controls.Add($c);$c}
 function Text($x,$y,$w){$c=[Windows.Forms.TextBox]::new();$c.Location=[Drawing.Point]::new($x,$y);$c.Size=[Drawing.Size]::new($w,24);$form.Controls.Add($c);$c}
 function Button($t,$x,$y,$w=90){$c=[Windows.Forms.Button]::new();$c.Text=$t;$c.Location=[Drawing.Point]::new($x,$y);$c.Size=[Drawing.Size]::new($w,28);$form.Controls.Add($c);$c}
@@ -117,6 +117,7 @@ $engine.Add_SelectedIndexChanged({UpdateEngineState;if($inputBox.Text){$outputBo
 RefreshA;UpdateEngineState
 $status=[Windows.Forms.Label]::new();$status.Location=[Drawing.Point]::new(20,585);$status.Size=[Drawing.Size]::new(620,60);$form.Controls.Add($status)
 $setup=Button '安装/修复后端' 690 585 210
+$compareBtn=Button '图片对比器' 455 655 110
 $save=Button '保存设置' 575 655 100;$run=Button '开始处理' 685 655 100;$logs=Button '打开日志' 795 655 105
 
 function ModeFile(){RPath ([string]$cfg.magpie.mode_file)}
@@ -205,6 +206,12 @@ $openModes.Add_Click({
 })
 $openE.Add_Click({$p=EffectsDir;if(Test-Path $p){Start-Process explorer.exe $p}else{[Windows.Forms.MessageBox]::Show('请先运行安装/修复后端。')|Out-Null}})
 $logs.Add_Click({$p=Join-Path $Root 'logs';New-Item -ItemType Directory -Force -Path $p|Out-Null;Start-Process explorer.exe $p})
+$compareBtn.Add_Click({
+    $cmpArgs = @('-NoProfile','-STA','-File',(Join-Path $Root 'ImageComparator.ps1'))
+    if ($inputBox.Text -and (Test-Path -LiteralPath $inputBox.Text -PathType Leaf)) { $cmpArgs += @('-OriginalPath', $inputBox.Text) }
+    if ($outputBox.Text -and (Test-Path -LiteralPath $outputBox.Text -PathType Leaf)) { $cmpArgs += @('-ResultPaths', $outputBox.Text) }
+    Start-Pwsh $cmpArgs | Out-Null
+})
 $setup.Add_Click({$scriptName=if($engine.Text -eq 'anime4kcpp'){'Setup-Anime4KCPP.ps1'}else{'Setup.ps1'};Start-Pwsh @('-NoProfile','-File',(Join-Path $Root $scriptName)) -Wait|Out-Null;$cfg=Load-Cfg;RefreshN;RefreshM;RefreshA;Status})
 $saveAction={
     try {
