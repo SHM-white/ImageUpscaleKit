@@ -1,0 +1,32 @@
+{
+  "name": "USDU 保真优先 (2x)",
+  "category": "usdu",
+  "description": "低重绘 (denoise=0.20) + Half Tile 接缝平滑 + Tiled VAE，最大程度保持人物五官、服装与构图一致性。",
+  "workflow": "workflows/usdu/usdu_api_template.json",
+  "workflow_map": "workflows/usdu/usdu_api_template.map.json",
+  "required_custom_nodes": [
+    {
+      "class_type": "UltimateSDUpscale",
+      "repo": "https://github.com/ssitu/ComfyUI_UltimateSDUpscale"
+    }
+  ],
+  "defaults": {
+    "upscale_by": 2.0,
+    "denoise": 0.2,
+    "cfg": 5.5,
+    "steps": 20,
+    "sampler_name": "euler",
+    "scheduler": "normal",
+    "mode_type": "Chess",
+    "tile_width": 512,
+    "tile_height": 512,
+    "mask_blur": 12,
+    "tile_padding": 48,
+    "seam_fix_mode": "Half Tile",
+    "seam_fix_denoise": 0.15,
+    "tiled_decode": true,
+    "batch_size": 1,
+    "positive_prompt": "high resolution, faithful details, clean edges, preserve original identity, face, hair, and clothing",
+    "negative_prompt": "blurry, deformed face, altered outfit, artifacts, noise, watermark"
+  }
+}

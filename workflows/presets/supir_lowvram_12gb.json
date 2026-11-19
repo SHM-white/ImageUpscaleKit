@@ -1,0 +1,45 @@
+{
+  "name": "SUPIR v0Q 12GB 低显存通用版 (2x)",
+  "category": "supir",
+  "description": "面向 12GB 显存（RTX 12GB / Arc B580 12GB）：启用 Tiled VAE (512)、TiledRestoreEDMSampler (768/384) 与及时卸载。",
+  "workflow": "workflows/supir/supir_v2_api_template.json",
+  "workflow_map": "workflows/supir/supir_v2_api_template.map.json",
+  "required_custom_nodes": [
+    {
+      "class_type": "SUPIR_model_loader_v2",
+      "repo": "https://github.com/kijai/ComfyUI-SUPIR"
+    }
+  ],
+  "compatibility": {
+    "vram_recommended_gb": 12,
+    "cuda_supported": true,
+    "xpu_status": "experimental_requires_testing",
+    "xpu_warnings": [
+      "SUPIR 上游主要面向 NVIDIA CUDA 开发；若 ComfyUI-SUPIR 或依赖扩展触发 CUDA 专用算子，请改用 NVIDIA CUDA 路径或 SwinIR/HAT/Real-ESRGAN。",
+      "Arc B580 12GB 下保持 fp8_unet=false、use_tiled_vae=true 与 TiledRestoreEDMSampler。"
+    ],
+    "license": "Non-Commercial Research / Personal Use Only (Fanghua-Yu/SUPIR)",
+    "model_source": "https://huggingface.co/Kijai/SUPIR_pruned"
+  },
+  "defaults": {
+    "scale_by": 2.0,
+    "supir_model": "SUPIR-v0Q_fp16.safetensors",
+    "fp8_unet": false,
+    "diffusion_dtype": "bf16",
+    "high_vram": false,
+    "use_tiled_vae": true,
+    "encoder_tile_size": 512,
+    "decoder_tile_size": 512,
+    "steps": 30,
+    "cfg_scale_start": 4.0,
+    "cfg_scale_end": 4.0,
+    "control_scale_start": 1.0,
+    "control_scale_end": 1.0,
+    "keep_model_loaded": false,
+    "sampler": "TiledRestoreEDMSampler",
+    "sampler_tile_size": 768,
+    "sampler_tile_stride": 384,
+    "positive_prompt": "high quality, detailed, clean restoration, sharp natural textures",
+    "negative_prompt": "blurry, messy, artifacts, noisy, over-smoothed, watermark"
+  }
+}

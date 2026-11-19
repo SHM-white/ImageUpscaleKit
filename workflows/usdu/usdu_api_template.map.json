@@ -1,0 +1,26 @@
+{
+  "input_image": { "class_type": "LoadImage", "input": "image" },
+  "output_node": { "class_type": "SaveImage" },
+  "parameters": {
+    "checkpoint": { "class_type": "CheckpointLoaderSimple", "input": "ckpt_name", "type": "string" },
+    "upscale_model": { "class_type": "UpscaleModelLoader", "input": "model_name", "type": "string" },
+    "positive_prompt": { "class_type": "CLIPTextEncode", "title_pattern": "Positive", "input": "text", "type": "string" },
+    "negative_prompt": { "class_type": "CLIPTextEncode", "title_pattern": "Negative", "input": "text", "type": "string" },
+    "upscale_by": { "class_type": "UltimateSDUpscale", "input": "upscale_by", "type": "float" },
+    "seed": { "class_type": "UltimateSDUpscale", "input": "seed", "type": "int" },
+    "steps": { "class_type": "UltimateSDUpscale", "input": "steps", "type": "int" },
+    "cfg": { "class_type": "UltimateSDUpscale", "input": "cfg", "type": "float" },
+    "sampler_name": { "class_type": "UltimateSDUpscale", "input": "sampler_name", "type": "string" },
+    "scheduler": { "class_type": "UltimateSDUpscale", "input": "scheduler", "type": "string" },
+    "denoise": { "class_type": "UltimateSDUpscale", "input": "denoise", "type": "float" },
+    "mode_type": { "class_type": "UltimateSDUpscale", "input": "mode_type", "type": "string" },
+    "tile_width": { "class_type": "UltimateSDUpscale", "input": "tile_width", "type": "int" },
+    "tile_height": { "class_type": "UltimateSDUpscale", "input": "tile_height", "type": "int" },
+    "mask_blur": { "class_type": "UltimateSDUpscale", "input": "mask_blur", "type": "int" },
+    "tile_padding": { "class_type": "UltimateSDUpscale", "input": "tile_padding", "type": "int" },
+    "seam_fix_mode": { "class_type": "UltimateSDUpscale", "input": "seam_fix_mode", "type": "string" },
+    "seam_fix_denoise": { "class_type": "UltimateSDUpscale", "input": "seam_fix_denoise", "type": "float" },
+    "tiled_decode": { "class_type": "UltimateSDUpscale", "input": "tiled_decode", "type": "bool" },
+    "batch_size": { "class_type": "UltimateSDUpscale", "input": "batch_size", "type": "int" }
+  }
+}
