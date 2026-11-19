@@ -6,6 +6,7 @@
 /models/*
 !/models/README.txt
 !/models/.gitkeep
+!/models/registry.json
 
 # Local input images and generated results
 /input/*
