@@ -35,6 +35,9 @@ Desktop.ini
 .env.*
 !.env.example
 
+# Machine-specific local ComfyUI paths and instance settings
+/config.local.json
+
 # ACNet outputs created beside input files/folders
 *_acnet_x2/
 *_acnet_x2.png

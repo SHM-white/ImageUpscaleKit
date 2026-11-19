@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory=$true, Position=0)] [string]$InputPath,
     [string]$OutputPath,
-    [ValidateSet('ncnn','magpie','anime4kcpp')] [string]$Engine,
+    [ValidateSet('ncnn','magpie','anime4kcpp','comfyui')] [string]$Engine,
     [string]$Model,
     [string]$Scale,
     [int]$Tile = -1,
@@ -20,7 +20,13 @@ param(
     [ValidateRange(-1,65535)] [int]$AcDevice = -1,
     [ValidateSet('error','overwrite','rename')] [string]$ExistingOutput,
     [ValidateRange(1,256)] [int]$AcBatchSize,
-    [string]$MagpiePreset
+    [string]$MagpiePreset,
+    [string]$ComfyEndpoint,
+    [string]$ComfyInstance,
+    [string]$ComfyPreset,
+    [string]$ComfyWorkflow,
+    [string]$ComfyWorkflowMap,
+    [hashtable]$ComfyParams
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +62,18 @@ if ($Engine -eq 'magpie') {
     }
     & (Join-Path $Root 'MagpieBridge.ps1') @bridgeParams
     exit $LASTEXITCODE
+}
+if ($Engine -eq 'comfyui') {
+    $comfyParamsSplat = @{ InputPath = $InputPath }
+    if ($OutputPath) { $comfyParamsSplat.OutputPath = $OutputPath }
+    if ($ComfyEndpoint) { $comfyParamsSplat.ApiUrl = $ComfyEndpoint }
+    if ($ComfyInstance) { $comfyParamsSplat.InstanceName = $ComfyInstance }
+    if ($ComfyPreset) { $comfyParamsSplat.PresetName = $ComfyPreset }
+    if ($ComfyWorkflow) { $comfyParamsSplat.WorkflowPath = $ComfyWorkflow }
+    if ($ComfyWorkflowMap) { $comfyParamsSplat.WorkflowMapPath = $ComfyWorkflowMap }
+    if ($ComfyParams) { $comfyParamsSplat.WorkflowParams = $ComfyParams }
+    & (Join-Path $Root 'ComfyUI.ps1') @comfyParamsSplat
+    return
 }
 
 $n = $Cfg.ncnn
