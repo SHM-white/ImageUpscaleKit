@@ -62,6 +62,7 @@ if ($Engine -eq 'magpie') {
     # PowerShell script calls require a hashtable for named parameter splatting.
     $bridgeParams = @{ InputPath = $InputPath }
     if ($OutputPath) { $bridgeParams.OutputPath = $OutputPath }
+    if ($Scale) { $bridgeParams.TargetScale = $Scale }
     if ($MagpiePreset) { $bridgeParams.Preset = $MagpiePreset }
     else {
         if ($MagpieSelectionType) { $bridgeParams.SelectionType = $MagpieSelectionType }

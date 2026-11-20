@@ -1,0 +1,10 @@
+{
+  "name": "AnimeSharp 4x",
+  "category": "animesharp",
+  "description": "4 倍放大动漫线稿和文字边缘。权重采用 CC BY-NC-SA 4.0 授权。",
+  "workflow": "workflows/spandrel/upscale_model_api_template.json",
+  "workflow_map": "workflows/spandrel/upscale_model_api_template.map.json",
+  "defaults": {
+    "upscale_model": "4x-AnimeSharp.pth"
+  }
+}

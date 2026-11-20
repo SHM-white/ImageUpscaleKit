@@ -1,0 +1,10 @@
+{
+  "name": "APISR RRDB 2x",
+  "category": "apisr",
+  "description": "使用 APISR RRDB 对有压缩痕迹的动漫画面放大 2 倍。",
+  "workflow": "workflows/spandrel/upscale_model_api_template.json",
+  "workflow_map": "workflows/spandrel/upscale_model_api_template.map.json",
+  "defaults": {
+    "upscale_model": "2x_APISR_RRDB_GAN_generator.pth"
+  }
+}

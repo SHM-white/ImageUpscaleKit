@@ -1,0 +1,10 @@
+{
+  "name": "Real-ESRGAN Anime 6B 4x",
+  "category": "realesrgan",
+  "description": "使用 Real-ESRGAN 动漫权重将 2D 图片放大 4 倍。",
+  "workflow": "workflows/spandrel/upscale_model_api_template.json",
+  "workflow_map": "workflows/spandrel/upscale_model_api_template.map.json",
+  "defaults": {
+    "upscale_model": "RealESRGAN_x4plus_anime_6B.pth"
+  }
+}

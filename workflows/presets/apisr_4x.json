@@ -1,0 +1,10 @@
+{
+  "name": "APISR GRL 4x",
+  "category": "apisr",
+  "description": "使用 APISR GRL 对动漫画面放大 4 倍，可在模型列表切换为 APISR DAT 4x。",
+  "workflow": "workflows/spandrel/upscale_model_api_template.json",
+  "workflow_map": "workflows/spandrel/upscale_model_api_template.map.json",
+  "defaults": {
+    "upscale_model": "4x_APISR_GRL_GAN_generator.pth"
+  }
+}

@@ -288,27 +288,37 @@ function New-IUKComfyUIPanel {
         }
     })
 
+    $ctx.SaveInstance = {
+        param($c, [switch]$InstallOnly)
+        $name = if ($c.CmbInst.Text) { $c.CmbInst.Text } else { 'default' }
+        $localCfg = (Get-IUKConfig -Root $c.Root).Local
+        $inst = Get-IUKActiveComfyInstance -LocalCfg $localCfg -InstanceName $name
+        $inst.name = $name
+        $inst.install_dir = $c.TxtDir.Text.Trim()
+        $inst.mode = if ($inst.install_dir) { 'managed' } else { 'connect' }
+        $pyOrScript = $c.TxtPython.Text.Trim()
+        $isBat = ($pyOrScript -match '\.(bat|cmd|py)$')
+        $inst.python_path = if ($isBat) { '' } else { $pyOrScript }
+        $inst.startup_script = if ($isBat) { $pyOrScript } else { '' }
+        if (-not $InstallOnly) {
+            $inst.api_url = $c.TxtUrl.Text.Trim().TrimEnd('/')
+            $inst.startup_args = $c.TxtArgs.Text.Trim()
+        }
+        $updated = Set-IUKComfyInstance -LocalCfg $localCfg -Instance $inst -SetActive
+        $c.LocalCfg = Save-IUKLocalConfig -LocalCfg $updated -Root $c.Root -ErrorAction Stop
+    }
+
     $btnSaveInst.Add_Click({
         param($sender, $e)
         $c = $sender.Tag
-        $name = if ($c.CmbInst.Text) { $c.CmbInst.Text } else { 'default' }
-        $pyOrScript = $c.TxtPython.Text.Trim()
-        $isBat = ($pyOrScript -match '\.(bat|cmd|py)$')
-        $instObj = [pscustomobject]@{
-            name = $name
-            mode = if ($c.TxtDir.Text.Trim()) { 'managed' } else { 'connect' }
-            api_url = $c.TxtUrl.Text.Trim().TrimEnd('/')
-            install_dir = $c.TxtDir.Text.Trim()
-            python_path = if ($isBat) { '' } else { $pyOrScript }
-            startup_script = if ($isBat) { $pyOrScript } else { '' }
-            startup_args = $c.TxtArgs.Text.Trim()
-            gpu_hint = 'auto'
-            auto_connect = $false
+        try {
+            & $c.SaveInstance $c
+            $c.LblConnStatus.ForeColor = [System.Drawing.Color]::DarkGreen
+            $c.LblConnStatus.Text = "已保存本机配置 ($($c.LocalCfg.active_instance) -> config.local.json)"
+        } catch {
+            $c.LblConnStatus.ForeColor = [System.Drawing.Color]::Firebrick
+            $c.LblConnStatus.Text = "保存本机配置失败：$($_.Exception.Message)"
         }
-        $c.LocalCfg = Set-IUKComfyInstance -LocalCfg $c.LocalCfg -Instance $instObj -SetActive
-        $c.LocalCfg = Save-IUKLocalConfig -LocalCfg $c.LocalCfg -Root $c.Root
-        $c.LblConnStatus.ForeColor = [System.Drawing.Color]::DarkGreen
-        $c.LblConnStatus.Text = "已保存本机配置 ($name -> config.local.json)"
     })
 
     $btnTestConn.Add_Click({
@@ -332,13 +342,19 @@ function New-IUKComfyUIPanel {
         try {
             if ($c.TxtDir.Text -and (Test-Path -LiteralPath $c.TxtDir.Text -PathType Container)) { $d.SelectedPath = $c.TxtDir.Text }
             if ($d.ShowDialog($sender.FindForm()) -eq [System.Windows.Forms.DialogResult]::OK) {
+                $previousDir = $c.TxtDir.Text.Trim()
                 $c.TxtDir.Text = $d.SelectedPath
                 $det = Find-IUKComfyUIInstall -InstallDir $d.SelectedPath
                 if ($det.PythonPath) { $c.TxtPython.Text = $det.PythonPath }
                 elseif ($det.Launchers.Count -gt 0) { $c.TxtPython.Text = $det.Launchers[0] }
+                elseif ($c.TxtDir.Text -ne $previousDir) { $c.TxtPython.Clear() }
+                & $c.SaveInstance $c -InstallOnly
                 $c.LblConnStatus.ForeColor = if ($det.Found) { [System.Drawing.Color]::RoyalBlue } else { [System.Drawing.Color]::DarkOrange }
-                $c.LblConnStatus.Text = $det.Message
+                $c.LblConnStatus.Text = "已保存安装目录`r`n$($det.Message)"
             }
+        } catch {
+            $c.LblConnStatus.ForeColor = [System.Drawing.Color]::Firebrick
+            $c.LblConnStatus.Text = "识别或保存安装目录失败：$($_.Exception.Message)"
         } finally { $d.Dispose() }
     })
 
@@ -456,6 +472,7 @@ function New-IUKComfyUIPanel {
         if ($ctx.CmbPreset.Items.Contains($PresetId)) {
             $ctx.CmbPreset.SelectedItem = $PresetId
             $ctx.TxtWf.Clear()
+            $ctx.CmbUpscaleModel.SelectedIndex = 0
         }
     }.GetNewClosure()
 

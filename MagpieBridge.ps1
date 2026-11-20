@@ -6,7 +6,8 @@ param(
     [string]$Family,
     [string]$Tier,
     [string]$Effect,
-    [string]$Preset
+    [string]$Preset,
+    [string]$TargetScale
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,8 +30,6 @@ function New-DefaultProfile {
         scalingMode = 0
         captureMethod = 0
         multiMonitorUsage = 0
-        initialWindowedScaleFactor = 6
-        customInitialWindowedScaleFactor = 1.0
         graphicsCardId = [pscustomobject]@{ idx=-1; vendorId=0; deviceId=0 }
         frameRateLimiterEnabled = $false
         maxFrameRate = 60.0
@@ -47,7 +46,7 @@ function New-DefaultProfile {
         outputAlignment = 4
     }
 }
-function New-SyntheticMagpieConfig($Effects,$ShotDir) {
+function New-SyntheticMagpieConfig($Effects) {
     $effectItems = @()
     foreach ($e in @($Effects)) {
         $item = [ordered]@{ name = [string]$e.name }
@@ -71,7 +70,7 @@ function New-SyntheticMagpieConfig($Effects,$ShotDir) {
         overlay = [pscustomobject]@{ windows = [pscustomobject]@{} }
     }
 }
-function Build-MagpieConfigForModeFromOfficial([string]$SourceConfigFile,[string]$ModeName,[string]$ShotDir) {
+function Build-MagpieConfigForModeFromOfficial([string]$SourceConfigFile,[string]$ModeName) {
     $cfgObj = Read-IUKMagpieConfig $SourceConfigFile
     $modes = @($cfgObj.scalingModes)
     if ($modes.Count -eq 0) { throw "No scalingModes found in Magpie config: $SourceConfigFile" }
@@ -102,6 +101,25 @@ function Build-MagpieConfigForModeFromOfficial([string]$SourceConfigFile,[string
     return $cfgObj
 }
 
+function Get-AutoMagpieTargetScale($Effects, [string]$EffectsDir) {
+    $scale = 1.0
+    foreach ($effectItem in $Effects) {
+        $shader = Join-Path $EffectsDir ($effectItem.name + '.hlsl')
+        $outputSize = if (Test-Path -LiteralPath $shader -PathType Leaf) {
+            $outputTexture = Select-String -LiteralPath $shader -Pattern '^\s*Texture2D\s+OUTPUT\s*;' -Context 2,0 | Select-Object -First 1
+            $outputTexture.Context.PreContext -join "`n"
+        }
+        # Fixed-size HLSL effects take precedence over any configured per-effect scale.
+        if ($outputSize -match '^\s*//!\s*WIDTH\s+INPUT_WIDTH\s*\*\s*(\d+(?:\.\d+)?)\s*\n\s*//!\s*HEIGHT\s+INPUT_HEIGHT\s*\*\s*\1\s*$') {
+            $scale *= [double]$Matches[1]
+        } elseif ($effectItem.scalingType -eq 0 -and $effectItem.scale.x -gt 0 -and $effectItem.scale.x -eq $effectItem.scale.y) {
+            $scale *= [double]$effectItem.scale.x
+        }
+    }
+    if ($scale -gt 1.0) { return $scale }
+    return 2.0
+}
+
 $mag = $Cfg.magpie
 $MagpieExe = Resolve-KitPath ([string]$mag.exe_path)
 $EffectsDir = Resolve-KitPath ([string]$mag.effects_dir)
@@ -117,6 +135,7 @@ if (-not (Test-IUKMagpieScreenshotHotkey $magpieVersion.FileVersion)) {
 if (-not (Test-Path -LiteralPath $InputPath)) { throw "Input does not exist: $InputPath" }
 
 $SelectedEffects = $null
+$PresetCfg = $null
 $SelectionLabel = ''
 $ConfigBuildMode = 'synthetic'
 $ModeSource = 'none'
@@ -154,16 +173,34 @@ if ($Preset) {
         }
     }
 }
-if ($SelectedEffects) {
-    if (-not $SelectedEffects -or @($SelectedEffects).Count -eq 0) { throw 'Selected Magpie mode/effect chain is empty.' }
-    Test-IUKEffectsExist $SelectedEffects $EffectsDir
+if ($ConfigBuildMode -eq 'official') {
+    $magpieConfig = Build-MagpieConfigForModeFromOfficial $OfficialConfigFile $Mode
+    $SelectedEffects = @($magpieConfig.scalingModes[$magpieConfig.profiles[0].scalingMode].effects)
+} else {
+    $magpieConfig = New-SyntheticMagpieConfig $SelectedEffects
 }
+if (-not $SelectedEffects) { throw 'Selected Magpie mode/effect chain is empty.' }
+if ($ConfigBuildMode -eq 'synthetic') { Test-IUKEffectsExist $SelectedEffects $EffectsDir }
+
+if (-not $TargetScale) { $TargetScale = [string]($PresetCfg.target_scale ?? $mag.target_scale) }
+$windowedScale = if (-not $TargetScale -or $TargetScale -eq 'auto') {
+    Get-AutoMagpieTargetScale $SelectedEffects $EffectsDir
+} else {
+    [double]$TargetScale
+}
+if (-not [double]::IsFinite($windowedScale) -or $windowedScale -lt 1.0) {
+    throw 'Magpie target scale must be a finite number of at least 1.0, or auto.'
+}
+$profile = $magpieConfig.profiles[0]
+Set-ObjProp $profile 'initialWindowedScaleFactor' 6 # Custom
+Set-ObjProp $profile 'customInitialWindowedScaleFactor' $windowedScale
+Set-IUKMagpieCaptureConfig $magpieConfig $ShotDir
+
 Write-Host "Engine: MagpieFX"
 Write-Host $SelectionLabel
-if ($SelectedEffects) {
-    Write-Host "Effects:"
-    @($SelectedEffects) | ForEach-Object { Write-Host "  $($_.name)" }
-}
+Write-Host ("Windowed target scale: {0}x" -f $windowedScale)
+Write-Host "Effects:"
+$SelectedEffects | ForEach-Object { Write-Host "  $($_.name)" }
 
 # Win32 helpers: find/activate Magpie windows and synthesize hotkeys.
 $nativeCode = @'
@@ -239,13 +276,6 @@ $TargetMagpieConfigPath = Join-Path $MagpieConfigDir 'config.json'
 New-Item -ItemType Directory -Force -Path $MagpieConfigDir | Out-Null
 $OriginalConfigExisted = Test-Path -LiteralPath $TargetMagpieConfigPath
 $OriginalConfigBytes = if ($OriginalConfigExisted) { [IO.File]::ReadAllBytes($TargetMagpieConfigPath) } else { $null }
-
-if ($ConfigBuildMode -eq 'official') {
-    $magpieConfig = Build-MagpieConfigForModeFromOfficial $OfficialConfigFile $Mode $ShotDir
-} else {
-    $magpieConfig = New-SyntheticMagpieConfig $SelectedEffects $ShotDir
-}
-Set-IUKMagpieCaptureConfig $magpieConfig $ShotDir
 
 $InputResolved = [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $InputPath).Path)
 $InputItem = Get-Item -LiteralPath $InputResolved

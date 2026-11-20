@@ -156,6 +156,7 @@ function Build-IUKUpscaleArguments {
     } elseif ($engine -eq 'magpie') {
         $sel = if ($Options.MagpieSelectionType) { [string]$Options.MagpieSelectionType } else { 'mode' }
         [void]$args.Add('-MagpieSelectionType'); [void]$args.Add($sel)
+        if ($Options.MagpieScale) { [void]$args.Add('-Scale'); [void]$args.Add([string]$Options.MagpieScale) }
         if ($sel -eq 'effect') {
             if ($Options.MagpieEffect) { [void]$args.Add('-MagpieEffect'); [void]$args.Add([string]$Options.MagpieEffect) }
         } elseif ($sel -eq 'family') {

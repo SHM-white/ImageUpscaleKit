@@ -1,0 +1,33 @@
+{
+  "name": "USDU 动漫线条保真 (2x)",
+  "category": "usdu",
+  "description": "使用 Anime 6B 权重预放大，再以低重绘强度修整动漫线条与平涂色块。",
+  "workflow": "workflows/usdu/usdu_api_template.json",
+  "workflow_map": "workflows/usdu/usdu_api_template.map.json",
+  "required_custom_nodes": [
+    {
+      "class_type": "UltimateSDUpscale",
+      "repo": "https://github.com/ssitu/ComfyUI_UltimateSDUpscale"
+    }
+  ],
+  "defaults": {
+    "upscale_model": "RealESRGAN_x4plus_anime_6B.pth",
+    "upscale_by": 2.0,
+    "denoise": 0.15,
+    "cfg": 4.5,
+    "steps": 20,
+    "sampler_name": "euler",
+    "scheduler": "normal",
+    "mode_type": "Chess",
+    "tile_width": 512,
+    "tile_height": 512,
+    "mask_blur": 12,
+    "tile_padding": 48,
+    "seam_fix_mode": "Half Tile",
+    "seam_fix_denoise": 0.1,
+    "tiled_decode": true,
+    "batch_size": 1,
+    "positive_prompt": "2D anime illustration, clean consistent line art, crisp outlines, flat colors, cel shading, preserve original palette, character design, and composition",
+    "negative_prompt": "photorealism, 3D render, painterly texture, added details, altered colors, distorted outlines, halos, compression artifacts, watermark"
+  }
+}

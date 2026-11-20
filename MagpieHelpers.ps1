@@ -93,12 +93,11 @@ function Get-IUKPreferredModeSource([string]$ConfigFile,[string]$ModeFile,[strin
 }
 
 function Get-IUKUnifiedModeNames([string]$ConfigFile,[string]$ModeFile) {
-    $source = Get-IUKPreferredModeSource $ConfigFile $ModeFile
-    switch ($source) {
-        'config' { return @(Get-IUKMagpieConfigModeNames $ConfigFile) }
-        'kit' { return @(Get-IUKModeNames $ModeFile) }
-        default { return @() }
+    $names = @(Get-IUKMagpieConfigModeNames $ConfigFile)
+    if (Test-Path -LiteralPath $ModeFile -PathType Leaf) {
+        $names += @(Get-IUKModeNames $ModeFile | Where-Object { $_ -notin $names })
     }
+    return $names
 }
 
 function Get-IUKModeSourceLabel([string]$ConfigFile,[string]$ModeFile,[string]$PreferredModeName='') {

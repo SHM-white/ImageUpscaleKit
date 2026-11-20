@@ -128,6 +128,24 @@
       ]
     },
     {
+      "name": "FSRCNNX LineArt",
+      "description": "Native 2x FSRCNNX shader for line art and 2D illustrations.",
+      "effects": [
+        {
+          "name": "FSRCNNX\\FSRCNNX_LineArt"
+        }
+      ]
+    },
+    {
+      "name": "ArtCNN",
+      "description": "Native 2x Ani4Kv2 ArtCNN shader for anime. Weights: CC BY-NC 4.0.",
+      "effects": [
+        {
+          "name": "Ani4Kv2_ArtCNN_C4F32_i2"
+        }
+      ]
+    },
+    {
       "name": "CuNNy",
       "description": "Magpie built-in CuNNy mode.",
       "effects": [
@@ -159,6 +177,12 @@
       "description": "Anime4K GAN x2 family. Quality level is selected from installed HLSL variants.",
       "autoFamily": "Anime4K\\Anime4K_Upscale_GAN_x2",
       "defaultTier": "M"
+    },
+    {
+      "name": "Anime4K GAN x3",
+      "description": "Anime4K GAN x3 family. Quality level is selected from installed HLSL variants.",
+      "autoFamily": "Anime4K\\Anime4K_Upscale_GAN_x3",
+      "defaultTier": "L"
     },
     {
       "name": "Integer Scale",

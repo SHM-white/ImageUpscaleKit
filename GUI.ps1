@@ -106,8 +106,14 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     [void]$presets.Add([pscustomobject]@{ Label = '动漫 2x 降噪 (ACNet HDN1)'; Engine = 'anime4kcpp'; Model = 'acnet-legacy-hdn1'; Scale = '2' })
     [void]$presets.Add([pscustomobject]@{ Label = '动漫 4x 锐利 (Real-ESRGAN Anime)'; Engine = 'ncnn'; Model = 'realesrgan-x4plus-anime'; Scale = '4' })
     [void]$presets.Add([pscustomobject]@{ Label = '通用 4x 超分 (Real-ESRGAN)'; Engine = 'ncnn'; Model = 'realesrgan-x4plus'; Scale = '4' })
+    if ($Script:IUKHasRealCugan) {
+        [void]$presets.Add([pscustomobject]@{ Label = 'Real-CUGAN 动漫 2x'; Engine = 'realcugan'; Model = 'models-se'; Scale = '2'; NoiseLevel = '-1' })
+        [void]$presets.Add([pscustomobject]@{ Label = 'Real-CUGAN 动漫 4x'; Engine = 'realcugan'; Model = 'models-se'; Scale = '4'; NoiseLevel = '-1' })
+    }
     [void]$presets.Add([pscustomobject]@{ Label = 'MagpieFX ACNet HLSL'; Engine = 'magpie'; SelectionType = 'family'; Family = 'ACNet'; Tier = 'Default' })
     [void]$presets.Add([pscustomobject]@{ Label = 'MagpieFX Lanczos x2'; Engine = 'magpie'; SelectionType = 'mode'; Mode = 'Lanczos'; Tier = '2x' })
+    [void]$presets.Add([pscustomobject]@{ Label = 'MagpieFX ArtCNN 动漫 2x'; Engine = 'magpie'; SelectionType = 'mode'; Mode = 'ArtCNN'; Scale = '2' })
+    [void]$presets.Add([pscustomobject]@{ Label = 'MagpieFX Anime4K 动漫 2x'; Engine = 'magpie'; SelectionType = 'family'; Family = 'Anime4K\Anime4K_Upscale'; Tier = 'VL'; Scale = '2' })
 
     $comfyPresetsDir = Join-Path $KitRoot 'workflows\presets'
     if ($Script:IUKHasComfy -and (Test-Path -LiteralPath $comfyPresetsDir -PathType Container)) {
@@ -310,18 +316,21 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     # --- Left Pane: Queue + Status/Error Details ---
     $leftToolbar = [System.Windows.Forms.FlowLayoutPanel]::new()
     $leftToolbar.Dock = [System.Windows.Forms.DockStyle]::Top
-    $leftToolbar.Height = 32
+    $leftToolbar.Height = 65
     $leftToolbar.Padding = [System.Windows.Forms.Padding]::new(4, 3, 4, 2)
 
     $btnRemoveSel = [System.Windows.Forms.Button]::new(); $btnRemoveSel.Text = '移除选中'; $btnRemoveSel.Size = [System.Drawing.Size]::new(76, 24)
     $btnClearDone = [System.Windows.Forms.Button]::new(); $btnClearDone.Text = '清已完成'; $btnClearDone.Size = [System.Drawing.Size]::new(76, 24)
     $btnRetryFail = [System.Windows.Forms.Button]::new(); $btnRetryFail.Text = '重试失败'; $btnRetryFail.Size = [System.Drawing.Size]::new(76, 24)
-    $leftToolbar.Controls.AddRange(@($btnRemoveSel, $btnClearDone, $btnRetryFail))
+    $btnRequeueAll = [System.Windows.Forms.Button]::new(); $btnRequeueAll.Text = '全部重新排队'; $btnRequeueAll.Size = [System.Drawing.Size]::new(110, 24)
+    $leftToolbar.Controls.AddRange(@($btnRemoveSel, $btnClearDone, $btnRetryFail, $btnRequeueAll))
+    $leftToolbar.SetFlowBreak($btnClearDone, $true)
 
     $queueList = [System.Windows.Forms.ListView]::new()
     $queueList.Dock = [System.Windows.Forms.DockStyle]::Fill
     $queueList.View = [System.Windows.Forms.View]::Details
     $queueList.FullRowSelect = $true
+    $queueList.MultiSelect = $true
     $queueList.GridLines = $true
     $queueList.HideSelection = $false
     $queueList.AllowDrop = $true
@@ -381,6 +390,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $miOpenResDir = $queueCtx.Items.Add('打开结果目录')
     $miShowErr = $queueCtx.Items.Add('查看错误详情')
     $miRequeue = $queueCtx.Items.Add('重新排队')
+    $miRequeueAll = $queueCtx.Items.Add('全部重新排队')
     $miRemove = $queueCtx.Items.Add('从列表移除')
     $queueList.ContextMenuStrip = $queueCtx
 
@@ -475,7 +485,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     # Magpie basic group
     $grpMagpieBasic = [System.Windows.Forms.GroupBox]::new()
     $grpMagpieBasic.Text = 'MagpieFX / HLSL'
-    $grpMagpieBasic.Size = [System.Drawing.Size]::new($cardW, 182)
+    $grpMagpieBasic.Size = [System.Drawing.Size]::new($cardW, 214)
     $rightStack.Controls.Add($grpMagpieBasic)
 
     $lblMST = [System.Windows.Forms.Label]::new(); $lblMST.Text = '方式:'; $lblMST.Location = [System.Drawing.Point]::new(10, 24); $lblMST.Size = [System.Drawing.Size]::new(48, 22)
@@ -485,8 +495,10 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $cmbMagMode = [System.Windows.Forms.ComboBox]::new(); $cmbMagMode.DropDownStyle = 'DropDownList'; $cmbMagMode.Location = [System.Drawing.Point]::new(62, 52); $cmbMagMode.Size = [System.Drawing.Size]::new(262, 24)
     $lblMT = [System.Windows.Forms.Label]::new(); $lblMT.Text = '档位:'; $lblMT.Location = [System.Drawing.Point]::new(10, 88); $lblMT.Size = [System.Drawing.Size]::new(48, 22)
     $cmbMagTier = [System.Windows.Forms.ComboBox]::new(); $cmbMagTier.DropDownStyle = 'DropDownList'; $cmbMagTier.Location = [System.Drawing.Point]::new(62, 84); $cmbMagTier.Size = [System.Drawing.Size]::new(262, 24)
-    $txtMagPreview = [System.Windows.Forms.TextBox]::new(); $txtMagPreview.Location = [System.Drawing.Point]::new(10, 116); $txtMagPreview.Size = [System.Drawing.Size]::new(314, 56); $txtMagPreview.Multiline = $true; $txtMagPreview.ReadOnly = $true; $txtMagPreview.ScrollBars = 'Vertical'
-    $grpMagpieBasic.Controls.AddRange(@($lblMST, $cmbMagType, $btnMagRefresh, $lblMM, $cmbMagMode, $lblMT, $cmbMagTier, $txtMagPreview))
+    $lblMagScale = [System.Windows.Forms.Label]::new(); $lblMagScale.Text = '目标倍率:'; $lblMagScale.Location = [System.Drawing.Point]::new(10, 120); $lblMagScale.AutoSize = $true
+    $cmbMagScale = [System.Windows.Forms.ComboBox]::new(); $cmbMagScale.DropDownStyle = 'DropDownList'; $cmbMagScale.Items.AddRange(@('auto', '2', '3', '4')); $cmbMagScale.Location = [System.Drawing.Point]::new(72, 116); $cmbMagScale.Size = [System.Drawing.Size]::new(100, 24)
+    $txtMagPreview = [System.Windows.Forms.TextBox]::new(); $txtMagPreview.Location = [System.Drawing.Point]::new(10, 148); $txtMagPreview.Size = [System.Drawing.Size]::new(314, 56); $txtMagPreview.Multiline = $true; $txtMagPreview.ReadOnly = $true; $txtMagPreview.ScrollBars = 'Vertical'
+    $grpMagpieBasic.Controls.AddRange(@($lblMST, $cmbMagType, $btnMagRefresh, $lblMM, $cmbMagMode, $lblMT, $cmbMagTier, $lblMagScale, $cmbMagScale, $txtMagPreview))
 
     # Dynamic plugin panel slot (gui\*Panel.ps1 from PR 3 / PR 5)
     $pluginHost = [System.Windows.Forms.Panel]::new()
@@ -709,10 +721,14 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     }
 
     $showStatusLog = {
-        param([string]$Title, [string]$Body, [switch]$IsError)
+        param([string]$Title, [string]$Body, [switch]$IsError, [string]$PreviewError)
         $lblErrTitle.Text = if ($Title) { $Title } else { '运行状态 / 错误详情' }
-        $txtErrLog.Text = [string]$Body
-        if ($IsError) {
+        $txtErrLog.Text = if ($PreviewError) {
+            (@($Body, $PreviewError) | Where-Object { $_ }) -join "`r`n`r`n"
+        } else {
+            $Body
+        }
+        if ($IsError -or $PreviewError) {
             $lblErrTitle.ForeColor = [System.Drawing.Color]::Firebrick
             $txtErrLog.BackColor = [System.Drawing.Color]::FromArgb(255, 242, 242)
             $txtErrLog.ForeColor = [System.Drawing.Color]::DarkRed
@@ -726,9 +742,10 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $refreshQueueUI = {
         $state.Syncing = $true
         try {
-            $selectedId = if ($queueList.SelectedIndices.Count -gt 0 -and $queueList.SelectedIndices[0] -lt $state.Queue.Count) {
-                $state.Queue[$queueList.SelectedIndices[0]].Id
-            } else { $null }
+            $selectedIds = @{}
+            foreach ($row in $queueList.SelectedItems) {
+                $selectedIds[$row.Tag.Id] = $true
+            }
 
             $queueList.BeginUpdate()
             try {
@@ -748,7 +765,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
                         '已取消' { $lvi.ForeColor = [System.Drawing.Color]::Gray }
                     }
                     [void]$queueList.Items.Add($lvi)
-                    if ($selectedId -and $q.Id -eq $selectedId) {
+                    if ($selectedIds.ContainsKey($q.Id)) {
                         $lvi.Selected = $true
                     }
                 }
@@ -775,8 +792,12 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $loadQueueItemToComparator = {
         param($Item)
         if (-not $Item) { return }
-        if (Test-Path -LiteralPath $Item.InputPath -PathType Leaf) {
+        $previewErrors = [System.Collections.Generic.List[string]]::new()
+        try {
             $compWrap.Control.LoadOriginal($Item.InputPath)
+        } catch {
+            $compWrap.Control.ClearAll()
+            $previewErrors.Add("原图预览失败：$($Item.InputPath)`r`n$($_.Exception.GetBaseException().Message)")
         }
         $typedList = [System.Collections.Generic.List[ImageUpscaleKit.UI.ComparatorResultItem]]::new()
         foreach ($r in $Item.Results) {
@@ -794,8 +815,15 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             }
         }
         $selIdx = if ($typedList.Count -gt 0) { $typedList.Count - 1 } else { -1 }
-        $compWrap.Control.SetResults($typedList, $selIdx)
-        $compWrap.Control.FitToWindow()
+        try {
+            $compWrap.Control.SetResults($typedList, $selIdx)
+            $compWrap.Control.FitToWindow()
+        } catch {
+            $compWrap.Control.ClearAll()
+            $resultPath = if ($selIdx -ge 0) { $typedList[$selIdx].FilePath }
+            $previewErrors.Add("结果预览失败：$resultPath`r`n$($_.Exception.GetBaseException().Message)")
+        }
+        if ($previewErrors.Count -gt 0) { return ($previewErrors -join "`r`n`r`n") }
     }
 
     $enqueuePaths = {
@@ -817,7 +845,6 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         & $refreshQueueUI
         if ($firstNewIdx -ge 0 -and $queueList.SelectedIndices.Count -eq 0) {
             $queueList.Items[$firstNewIdx].Selected = $true
-            & $loadQueueItemToComparator $state.Queue[$firstNewIdx]
         }
         return $added
     }
@@ -834,6 +861,11 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         } elseif ($p.Engine -eq 'ncnn') {
             if ($p.Model -and $cmbNcnnModel.Items.Contains($p.Model)) { $cmbNcnnModel.SelectedItem = $p.Model }
             if ($p.Scale -and $cmbNcnnScale.Items.Contains($p.Scale)) { $cmbNcnnScale.SelectedItem = $p.Scale }
+        } elseif ($p.Engine -eq 'realcugan' -and $state.PluginPanels.ContainsKey('realcugan')) {
+            $panel = $state.PluginPanels['realcugan'].Context
+            $panel.CmbModel.SelectedItem = $p.Model
+            $panel.CmbScale.SelectedItem = $p.Scale
+            $panel.CmbNoise.SelectedItem = $p.NoiseLevel
         } elseif ($p.Engine -eq 'magpie') {
             if ($p.SelectionType) { $cmbMagType.SelectedItem = $p.SelectionType }
             & $refreshMagpie
@@ -841,6 +873,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             if ($target -and $cmbMagMode.Items.Contains($target)) { $cmbMagMode.SelectedItem = $target }
             & $refreshMagpieTiers
             if ($p.Tier -and $cmbMagTier.Items.Contains($p.Tier)) { $cmbMagTier.SelectedItem = $p.Tier }
+            $cmbMagScale.SelectedItem = $p.Scale ?? 'auto'
             & $updateMagpiePreview
         } elseif ($p.Engine -eq 'comfyui' -and $state.PluginPanels.ContainsKey('comfyui')) {
             if ($p.ComfyPreset -and $state.PluginPanels['comfyui'].SelectPreset) {
@@ -870,6 +903,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             MagpieFamily = $cmbMagMode.Text
             MagpieTier = $cmbMagTier.Text
             MagpieEffect = $cmbMagRaw.Text
+            MagpieScale = $cmbMagScale.Text
         }
         foreach ($key in $state.PluginPanels.Keys) {
             if ($state.PluginPanels[$key].GetOptions) {
@@ -900,6 +934,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             else { if ($cmbMagMode.Text) { $c.magpie.mode = $cmbMagMode.Text } }
             if ($cmbMagTier.Text) { $c.magpie.tier = $cmbMagTier.Text }
             if ($cmbMagRaw.Text) { $c.magpie.raw_effect = $cmbMagRaw.Text }
+            $c.magpie | Add-Member -NotePropertyName target_scale -NotePropertyValue $cmbMagScale.Text -Force
             $c.ui.window_width = $form.Width
             $c.ui.window_height = $form.Height
             $c.ui.fail_policy = if ($cmbFail.SelectedIndex -eq 1) { 'stop' } else { 'continue' }
@@ -1008,10 +1043,10 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             }
             [void]$item.Results.Add($resObj)
             # Load completed result immediately if item is selected or comparator is showing it
-            if ($queueList.SelectedIndices.Count -eq 0 -or $state.Queue[$queueList.SelectedIndices[0]].Id -eq $item.Id) {
+            $previewError = if ($queueList.SelectedIndices.Count -eq 0 -or $state.Queue[$queueList.SelectedIndices[0]].Id -eq $item.Id) {
                 & $loadQueueItemToComparator $item
             }
-            & $showStatusLog "已完成 - $($item.FileName)" ("输出: {0}`r`n耗时: {1:F2}s" -f $item.OutputPath, ($elapsed / 1000.0))
+            & $showStatusLog "已完成 - $($item.FileName)" ("输出: {0}`r`n耗时: {1:F2}s" -f $item.OutputPath, ($elapsed / 1000.0)) -PreviewError $previewError
         } else {
             $item.Status = '失败'
             $nonEmpty = @($state.CurrentRunLog | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 20)
@@ -1042,6 +1077,8 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $chkNcnnTta.Checked = [bool]$cfg.ncnn.tta
     $cmbMagType.SelectedItem = [string]$cfg.magpie.selection_type
     if ($cmbMagType.SelectedIndex -lt 0) { $cmbMagType.SelectedItem = 'mode' }
+    $cmbMagScale.SelectedItem = [string]$cfg.magpie.target_scale
+    if ($cmbMagScale.SelectedIndex -lt 0) { $cmbMagScale.SelectedItem = 'auto' }
     & $refreshMagpie
     & $refreshBackendStatus
     & $updateEnginePanels
@@ -1086,14 +1123,14 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         & $refreshQueueUI
     })
 
-    $btnRemoveSel.Add_Click({
-        if ($queueList.SelectedIndices.Count -eq 0) { return }
-        $idx = $queueList.SelectedIndices[0]
-        if ($idx -ge 0 -and $idx -lt $state.Queue.Count -and $state.Queue[$idx].Status -ne '处理中') {
-            $state.Queue.RemoveAt($idx)
-            & $refreshQueueUI
+    $removeSelected = {
+        foreach ($idx in @($queueList.SelectedIndices | Sort-Object -Descending)) {
+            if ($state.Queue[$idx].Status -ne '处理中') { $state.Queue.RemoveAt($idx) }
         }
-    })
+        & $refreshQueueUI
+    }
+    $btnRemoveSel.Add_Click($removeSelected)
+    $miRemove.Add_Click($removeSelected)
 
     $btnClearDone.Add_Click({
         for ($i = $state.Queue.Count - 1; $i -ge 0; $i--) {
@@ -1114,21 +1151,22 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         & $refreshQueueUI
     })
 
-    $queueList.Add_SelectedIndexChanged({
+    $showQueueSelection = {
         if ($state.Syncing -or $queueList.SelectedIndices.Count -eq 0) { return }
         $idx = $queueList.SelectedIndices[0]
         if ($idx -ge 0 -and $idx -lt $state.Queue.Count) {
             $selItem = $state.Queue[$idx]
-            & $loadQueueItemToComparator $selItem
+            $previewError = & $loadQueueItemToComparator $selItem
             if ($selItem.Status -eq '失败' -and $selItem.ErrorMessage) {
-                & $showStatusLog "失败 - $($selItem.FileName)" $selItem.ErrorMessage -IsError
+                & $showStatusLog "失败 - $($selItem.FileName)" $selItem.ErrorMessage -IsError -PreviewError $previewError
             } elseif ($selItem.Status -eq '已完成' -and $selItem.OutputPath) {
-                & $showStatusLog "已完成 - $($selItem.FileName)" ("输出: {0}`r`n耗时: {1:F2}s" -f $selItem.OutputPath, ($selItem.ElapsedMs / 1000.0))
-            } elseif (-not $state.IsRunning) {
-                & $showStatusLog "状态 - $($selItem.FileName)" ("当前状态: {0}`r`n输入: {1}" -f $selItem.Status, $selItem.InputPath)
+                & $showStatusLog "已完成 - $($selItem.FileName)" ("输出: {0}`r`n耗时: {1:F2}s" -f $selItem.OutputPath, ($selItem.ElapsedMs / 1000.0)) -PreviewError $previewError
+            } elseif (-not $state.IsRunning -or $previewError) {
+                & $showStatusLog "状态 - $($selItem.FileName)" ("当前状态: {0}`r`n输入: {1}" -f $selItem.Status, $selItem.InputPath) -PreviewError $previewError
             }
         }
-    })
+    }
+    $queueList.Add_SelectedIndexChanged($showQueueSelection)
 
     $btnCopyErr.Add_Click({
         if (-not [string]::IsNullOrEmpty($txtErrLog.Text)) {
@@ -1167,19 +1205,23 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         }
     })
 
-    $miRequeue.Add_Click({
-        if ($queueList.SelectedIndices.Count -gt 0) {
-            $q = $state.Queue[$queueList.SelectedIndices[0]]
-            if ($q.Status -ne '处理中') { $q.Status = '待处理'; $q.ErrorMessage = ''; & $refreshQueueUI }
+    $requeueItems = {
+        param($Items)
+        foreach ($q in $Items) {
+            if ($q.Status -eq '处理中') { continue }
+            $q.Status = '待处理'
+            $q.ErrorMessage = ''
         }
-    })
+        & $refreshQueueUI
+        if (-not $state.IsRunning) { & $showQueueSelection }
+    }
 
-    $miRemove.Add_Click({
-        if ($queueList.SelectedIndices.Count -gt 0) {
-            $idx = $queueList.SelectedIndices[0]
-            if ($state.Queue[$idx].Status -ne '处理中') { $state.Queue.RemoveAt($idx); & $refreshQueueUI }
-        }
+    $miRequeue.Add_Click({
+        & $requeueItems @($queueList.SelectedItems | ForEach-Object { $_.Tag })
     })
+    $requeueAll = { & $requeueItems $state.Queue }
+    $btnRequeueAll.Add_Click($requeueAll)
+    $miRequeueAll.Add_Click($requeueAll)
 
     $cmbEngine.Add_SelectedIndexChanged({ & $updateEnginePanels })
     $btnApplyPreset.Add_Click($applyPreset)
