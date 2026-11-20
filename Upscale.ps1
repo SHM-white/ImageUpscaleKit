@@ -31,6 +31,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+try {
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [Console]::OutputEncoding = $utf8NoBom
+    $OutputEncoding = $utf8NoBom
+} catch {}
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigPath = Join-Path $Root 'config.json'
 $Cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
