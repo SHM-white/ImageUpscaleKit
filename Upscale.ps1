@@ -27,6 +27,7 @@ param(
     [string]$ComfyWorkflow,
     [string]$ComfyWorkflowMap,
     [hashtable]$ComfyParams,
+    [string]$ComfyParamsJson,
     [ValidateSet(-1,0,1,2,3)] [int]$NoiseLevel = -1,
     [ValidateRange(0,3)] [int]$SyncGap = 3
 )
@@ -75,7 +76,17 @@ if ($Engine -eq 'comfyui') {
     if ($ComfyPreset) { $comfyParamsSplat.PresetName = $ComfyPreset }
     if ($ComfyWorkflow) { $comfyParamsSplat.WorkflowPath = $ComfyWorkflow }
     if ($ComfyWorkflowMap) { $comfyParamsSplat.WorkflowMapPath = $ComfyWorkflowMap }
-    if ($ComfyParams) { $comfyParamsSplat.WorkflowParams = $ComfyParams }
+    $mergedComfyParams = @{}
+    if ($ComfyParamsJson) {
+        $parsedJson = $ComfyParamsJson | ConvertFrom-Json -AsHashtable
+        if ($parsedJson) {
+            foreach ($k in $parsedJson.Keys) { $mergedComfyParams[$k] = $parsedJson[$k] }
+        }
+    }
+    if ($ComfyParams) {
+        foreach ($k in $ComfyParams.Keys) { $mergedComfyParams[$k] = $ComfyParams[$k] }
+    }
+    if ($mergedComfyParams.Count -gt 0) { $comfyParamsSplat.WorkflowParams = $mergedComfyParams }
     & (Join-Path $Root 'ComfyUI.ps1') @comfyParamsSplat
     return
 }
