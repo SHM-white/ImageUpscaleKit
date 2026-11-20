@@ -421,6 +421,13 @@ function Apply-IUKComfyWorkflowMapping {
                 $applied['input_image'] = "$loadId.image=$UploadedImageName"
             }
         }
+        if ($ParamValues -and $ParamValues.ContainsKey('upscale_model') -and $ParamValues['upscale_model']) {
+            $upId = Resolve-IUKComfyNodeId $cloned @{ class_type = 'UpscaleModelLoader' }
+            if ($upId) {
+                $cloned.$upId.inputs | Add-Member -NotePropertyName 'model_name' -NotePropertyValue ([string]$ParamValues['upscale_model']) -Force
+                $applied['upscale_model'] = [string]$ParamValues['upscale_model']
+            }
+        }
         $outputNodeId = Resolve-IUKComfyNodeId $cloned @{ class_type = 'SaveImage' }
         if (-not $outputNodeId) {
             $outputNodeId = Resolve-IUKComfyNodeId $cloned @{ class_type = 'PreviewImage' }
@@ -479,6 +486,46 @@ function Format-IUKComfyError {
     }
 }
 
+function Get-IUKComfyInputOptions {
+    param($FieldSpec)
+    if ($null -eq $FieldSpec) { return $null }
+    if ($FieldSpec -is [System.Array]) {
+        if ($FieldSpec.Count -ge 1 -and ($FieldSpec[0] -is [System.Array])) {
+            return ,(@($FieldSpec[0] | ForEach-Object { [string]$_ }))
+        }
+        if ($FieldSpec.Count -ge 2 -and [string]$FieldSpec[0] -eq 'COMBO' -and $null -ne $FieldSpec[1] -and $FieldSpec[1].PSObject.Properties['options']) {
+            return ,(@($FieldSpec[1].options | ForEach-Object { [string]$_ }))
+        }
+    }
+    return $null
+}
+
+function Get-IUKComfyAvailableModels {
+    param($ObjectInfo)
+    $upscaleModels = @()
+    $checkpoints = @()
+    if ($ObjectInfo) {
+        if ($ObjectInfo.PSObject.Properties['UpscaleModelLoader']) {
+            $um = $ObjectInfo.UpscaleModelLoader
+            if ($um.input -and $um.input.required -and $um.input.required.PSObject.Properties['model_name']) {
+                $opts = Get-IUKComfyInputOptions $um.input.required.model_name
+                if ($null -ne $opts) { $upscaleModels = @($opts | Sort-Object -Unique) }
+            }
+        }
+        if ($ObjectInfo.PSObject.Properties['CheckpointLoaderSimple']) {
+            $ck = $ObjectInfo.CheckpointLoaderSimple
+            if ($ck.input -and $ck.input.required -and $ck.input.required.PSObject.Properties['ckpt_name']) {
+                $opts = Get-IUKComfyInputOptions $ck.input.required.ckpt_name
+                if ($null -ne $opts) { $checkpoints = @($opts | Sort-Object -Unique) }
+            }
+        }
+    }
+    return [pscustomobject]@{
+        UpscaleModels = $upscaleModels
+        Checkpoints = $checkpoints
+    }
+}
+
 function Test-IUKComfyWorkflowPreflight {
     param(
         [Parameter(Mandatory = $true)] $WorkflowObj,
@@ -513,15 +560,22 @@ function Test-IUKComfyWorkflowPreflight {
                 if ($val -is [System.Array]) { continue } # Connected link, not a filename
                 $sVal = [string]$val
                 if ([string]::IsNullOrWhiteSpace($sVal)) { continue }
-                $allowed = $null
+                $fieldSpec = $null
                 if ($nodeSpec.input.required -and $nodeSpec.input.required.PSObject.Properties[$mf]) {
-                    $allowed = $nodeSpec.input.required.$mf[0]
+                    $fieldSpec = $nodeSpec.input.required.$mf
                 } elseif ($nodeSpec.input.optional -and $nodeSpec.input.optional.PSObject.Properties[$mf]) {
-                    $allowed = $nodeSpec.input.optional.$mf[0]
+                    $fieldSpec = $nodeSpec.input.optional.$mf
                 }
-                if ($allowed -is [System.Array] -and $allowed.Count -gt 0 -and ($allowed -notcontains $sVal)) {
+                $allowed = Get-IUKComfyInputOptions $fieldSpec
+                if ($null -ne $allowed -and ($allowed -notcontains $sVal)) {
                     [void]$missingModels.Add($sVal)
-                    [void]$errors.Add("MissingModel: 节点 '$cls' 所需模型 '$sVal' 未在 ComfyUI 中找到（请检查 models 目录并刷新）。")
+                    if ($allowed.Count -eq 0) {
+                        [void]$errors.Add("MissingModel: 节点 '$cls' 所需模型 '$sVal' 未在 ComfyUI 中找到（对应目录暂无模型，请通过「权重管理」下载后刷新/重启 ComfyUI）。")
+                    } else {
+                        $sample = ($allowed | Select-Object -First 5) -join ', '
+                        if ($allowed.Count -gt 5) { $sample += ', ...' }
+                        [void]$errors.Add("MissingModel: 节点 '$cls' 所需模型 '$sVal' 未在 ComfyUI 中找到（当前可用: $sample；请下载所需权重或在右侧「超分模型」切换已有模型）。")
+                    }
                 }
             }
         }

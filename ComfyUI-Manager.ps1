@@ -11,9 +11,9 @@ $Root = $PSScriptRoot
 
 $form = [System.Windows.Forms.Form]::new()
 $form.Text = 'ImageUpscaleKit - ComfyUI 连接与实例管理'
-$form.Size = [System.Drawing.Size]::new(340, 440)
-$form.MinimumSize = [System.Drawing.Size]::new(330, 430)
-$form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+$form.Size = [System.Drawing.Size]::new(380, 520)
+$form.MinimumSize = [System.Drawing.Size]::new(360, 490)
+$form.StartPosition = 'CenterScreen'
 $form.Font = [System.Drawing.Font]::new('Segoe UI', 9)
 
 $cp = New-IUKComfyUIPanel -Root $Root

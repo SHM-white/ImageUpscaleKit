@@ -348,9 +348,9 @@ try {
 
         # 5. End-to-end Upscale.ps1 -Engine comfyui single + batch with Chinese paths & progress callbacks
         $singleOut = Join-Path $outDir '结果 图一.png'
-        & (Join-Path $root 'Upscale.ps1') -Engine comfyui -InputPath $img1 -OutputPath $singleOut -ComfyEndpoint $server.BaseUrl -ComfyWorkflow $wfPath -ComfyWorkflowMap $mapPath -ComfyParams @{ upscale_model = 'HAT_SRx4_ImageNet-pretrain.pth' }
+        & (Join-Path $root 'Upscale.ps1') -Engine comfyui -InputPath $img1 -OutputPath $singleOut -ComfyEndpoint $server.BaseUrl -ComfyWorkflow $wfPath -ComfyWorkflowMap $mapPath -ComfyParamsJson '{"upscale_model":"HAT_SRx4_ImageNet-pretrain.pth"}'
         Assert (Test-Path -LiteralPath $singleOut -PathType Leaf) 'Single ComfyUI output missing'
-        Assert ($server.LastSubmittedPromptJson -match 'HAT_SRx4_ImageNet-pretrain\.pth') 'Dynamic parameter mapping did not apply upscale_model'
+        Assert ($server.LastSubmittedPromptJson -match 'HAT_SRx4_ImageNet-pretrain\.pth') 'Dynamic parameter mapping did not apply ComfyParamsJson'
 
         $batchOut = Join-Path $outDir '批量结果'
         & (Join-Path $root 'Upscale.ps1') -Engine comfyui -InputPath $inDir -OutputPath $batchOut -ComfyEndpoint $server.BaseUrl -ComfyWorkflow $wfPath -ComfyWorkflowMap $mapPath
@@ -400,10 +400,37 @@ try {
     $sharedText = Get-Content -LiteralPath (Join-Path $fakeRoot 'config.json') -Raw
     Assert ($sharedText -notmatch 'my-pc-xpu' -and $sharedText -notmatch 'ComfyUI_Windows_portable_xpu') 'Local ComfyUI path leaked into shared config.json'
 
-    # 9. Standalone ComfyUI Manager UI test
+        # 9. Standalone ComfyUI Manager UI test + ComfyUI v3 COMBO preflight + CmbUpscaleModel override
+    $v3ObjInfo = [pscustomobject]@{
+        LoadImage = [pscustomobject]@{ input = [pscustomobject]@{ required = [pscustomobject]@{ image = @(@('a.png')) } } }
+        UpscaleModelLoader = [pscustomobject]@{ input = [pscustomobject]@{ required = [pscustomobject]@{ model_name = @('COMBO', [pscustomobject]@{ options = @('4xUltrasharp_4xUltrasharpV10.pt') }) } } }
+        ImageUpscaleWithModel = [pscustomobject]@{ input = [pscustomobject]@{} }
+        SaveImage = [pscustomobject]@{ input = [pscustomobject]@{} }
+    }
+    $availV3 = Get-IUKComfyAvailableModels -ObjectInfo $v3ObjInfo
+    Assert ($availV3.UpscaleModels -contains '4xUltrasharp_4xUltrasharpV10.pt') 'v3 COMBO UpscaleModels extraction failed'
+
+    $v3WfMissing = [pscustomobject]@{
+        '1' = [pscustomobject]@{ class_type = 'UpscaleModelLoader'; inputs = [pscustomobject]@{ model_name = 'Real_HAT_GAN_sharper.pth' } }
+    }
+    $pfV3Fail = Test-IUKComfyWorkflowPreflight -WorkflowObj $v3WfMissing -ObjectInfo $v3ObjInfo
+    Assert (-not $pfV3Fail.Valid -and ($pfV3Fail.Errors -join "`n") -match 'MissingModel.*Real_HAT_GAN_sharper\.pth.*4xUltrasharp_4xUltrasharpV10\.pt') "v3 COMBO preflight failed to catch missing model: $($pfV3Fail.Errors -join '; ')"
+
+    $v3WfOk = [pscustomobject]@{
+        '1' = [pscustomobject]@{ class_type = 'UpscaleModelLoader'; inputs = [pscustomobject]@{ model_name = '4xUltrasharp_4xUltrasharpV10.pt' } }
+    }
+    $pfV3Ok = Test-IUKComfyWorkflowPreflight -WorkflowObj $v3WfOk -ObjectInfo $v3ObjInfo
+    Assert $pfV3Ok.Valid "v3 COMBO preflight rejected valid installed model: $($pfV3Ok.Errors -join '; ')"
+
+    Add-Type -AssemblyName System.Windows.Forms
     $mgr = & (Join-Path $root 'ComfyUI-Manager.ps1') -TestMode
     try {
         Assert ($null -ne $mgr.Form -and $null -ne $mgr.Panel) 'ComfyUI-Manager failed to initialize'
+        $cnt = & $mgr.Panel.Context.PopulateAvailableModels $mgr.Panel.Context $v3ObjInfo
+        Assert ($cnt -eq 1 -and $mgr.Panel.Context.CmbUpscaleModel.Items.Contains('4xUltrasharp_4xUltrasharpV10.pt')) 'ComfyUIPanel did not populate v3 UpscaleModelLoader models'
+        $mgr.Panel.Context.CmbUpscaleModel.SelectedItem = '4xUltrasharp_4xUltrasharpV10.pt'
+        $panelOpts = & $mgr.Panel.GetOptions
+        Assert ($panelOpts.ComfyParams.upscale_model -eq '4xUltrasharp_4xUltrasharpV10.pt') "ComfyUIPanel GetOptions missing upscale_model override"
     } finally { $mgr.Form.Dispose() }
 
     Write-Host 'PASS: ComfyUI CUDA/XPU stats, dynamic node mapping, preflight missing-node, CUDA-on-XPU error classification, Chinese WS/HTTP execution, interrupt, portable/venv detection, and config separation.'
