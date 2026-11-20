@@ -22,6 +22,7 @@ $guiModule = New-Module -ArgumentList @($Root) -ScriptBlock {
 
     $Script:IUKHasComfy = Test-Path -LiteralPath (Join-Path $Root 'ComfyUI.ps1') -PathType Leaf
     $Script:IUKHasRealCugan = Test-Path -LiteralPath (Join-Path $Root 'RealCUGAN.ps1') -PathType Leaf
+    $Script:IUKHasModelManager = (Test-Path -LiteralPath (Join-Path $Root 'ModelManager.ps1') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $Root 'gui\ModelManagerDialog.ps1') -PathType Leaf)
 
 function Resolve-IUKPath([string]$Path) {
     if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
@@ -214,44 +215,53 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $btnStart.Font = [System.Drawing.Font]::new('Segoe UI', 9.5, [System.Drawing.FontStyle]::Bold)
 
     $btnSetup = New-TopBtn '安装/修复后端' 110
+    $btnModelMgr = New-TopBtn '权重/模型管理' 112
+    $btnModelMgr.Visible = $Script:IUKHasModelManager
 
     $topBar.Controls.AddRange(@(
         $btnImportFiles, $btnImportDir, $btnClearQueue,
         $lblEngine, $cmbEngine,
         $lblPreset, $cmbPreset, $btnApplyPreset,
-        $btnStart, $btnSetup
+        $btnStart, $btnSetup, $btnModelMgr
     ))
 
-    # --- Bottom Bar ---
+    # --- Bottom Bar (TableLayoutPanel prevents off-screen overflow at any window width/DPI) ---
     $bottomBar = [System.Windows.Forms.Panel]::new()
     $bottomBar.Dock = [System.Windows.Forms.DockStyle]::Bottom
-    $bottomBar.Height = 84
-    $bottomBar.Padding = [System.Windows.Forms.Padding]::new(10, 6, 10, 6)
+    $bottomBar.Height = 90
+    $bottomBar.Padding = [System.Windows.Forms.Padding]::new(10, 4, 10, 4)
     $bottomBar.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
 
+    $bottomGrid = [System.Windows.Forms.TableLayoutPanel]::new()
+    $bottomGrid.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $bottomGrid.ColumnCount = 2
+    $bottomGrid.RowCount = 2
+    [void]$bottomGrid.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Percent, 46))
+    [void]$bottomGrid.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Percent, 54))
+    [void]$bottomGrid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 26))
+    [void]$bottomGrid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Percent, 100))
+
     $progress = [System.Windows.Forms.ProgressBar]::new()
-    $progress.Location = [System.Drawing.Point]::new(10, 8)
-    $progress.Size = [System.Drawing.Size]::new(460, 18)
-    $progress.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+    $progress.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $progress.Margin = [System.Windows.Forms.Padding]::new(0, 3, 10, 3)
 
     $lblSummary = [System.Windows.Forms.Label]::new()
-    $lblSummary.Location = [System.Drawing.Point]::new(480, 8)
-    $lblSummary.Size = [System.Drawing.Size]::new(870, 20)
-    $lblSummary.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
+    $lblSummary.Dock = [System.Windows.Forms.DockStyle]::Fill
     $lblSummary.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
+    $lblSummary.AutoEllipsis = $true
     $lblSummary.Text = '已完成: 0 | 失败: 0 | 待处理: 0 | 就绪'
 
     $lblBackendStatus = [System.Windows.Forms.Label]::new()
-    $lblBackendStatus.Location = [System.Drawing.Point]::new(10, 34)
-    $lblBackendStatus.Size = [System.Drawing.Size]::new(660, 40)
-    $lblBackendStatus.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+    $lblBackendStatus.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $lblBackendStatus.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $lblBackendStatus.AutoEllipsis = $true
+    $lblBackendStatus.Margin = [System.Windows.Forms.Padding]::new(0, 2, 10, 0)
 
     $bottomBtnPanel = [System.Windows.Forms.FlowLayoutPanel]::new()
-    $bottomBtnPanel.Location = [System.Drawing.Point]::new(680, 36)
-    $bottomBtnPanel.Size = [System.Drawing.Size]::new(680, 36)
+    $bottomBtnPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
     $bottomBtnPanel.FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft
-    $bottomBtnPanel.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right
     $bottomBtnPanel.WrapContents = $false
+    $bottomBtnPanel.Padding = [System.Windows.Forms.Padding]::new(0, 8, 0, 0)
 
     function New-BottomBtn([string]$Text, [int]$W = 94) {
         $b = [System.Windows.Forms.Button]::new()
@@ -270,30 +280,34 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $btnCancelPending.Enabled = $false
 
     $bottomBtnPanel.Controls.AddRange(@($btnOpenLogs, $btnOpenOutDir, $btnOpenResult, $btnAbort, $btnCancelPending))
-    $bottomBar.Controls.AddRange(@($progress, $lblSummary, $lblBackendStatus, $bottomBtnPanel))
+    $bottomGrid.Controls.Add($progress, 0, 0)
+    $bottomGrid.Controls.Add($lblSummary, 1, 0)
+    $bottomGrid.Controls.Add($lblBackendStatus, 0, 1)
+    $bottomGrid.Controls.Add($bottomBtnPanel, 1, 1)
+    $bottomBar.Controls.Add($bottomGrid)
 
     # --- Main Split Containers (Left Queue | Center Comparator | Right Config) ---
     $outerSplit = [System.Windows.Forms.SplitContainer]::new()
     $outerSplit.Dock = [System.Windows.Forms.DockStyle]::Fill
     $outerSplit.Orientation = [System.Windows.Forms.Orientation]::Vertical
-    $outerSplit.Size = [System.Drawing.Size]::new($initW - 20, $initH - 160)
+    $outerSplit.Size = [System.Drawing.Size]::new($initW - 20, $initH - 166)
     $outerSplit.FixedPanel = [System.Windows.Forms.FixedPanel]::Panel1
-    $outerSplit.Panel1MinSize = 200
-    $outerSplit.Panel2MinSize = 640
-    $outerSplit.SplitterDistance = 270
+    $outerSplit.Panel1MinSize = 220
+    $outerSplit.Panel2MinSize = 660
+    $outerSplit.SplitterDistance = 280
 
     $innerSplit = [System.Windows.Forms.SplitContainer]::new()
     $innerSplit.Dock = [System.Windows.Forms.DockStyle]::Fill
     $innerSplit.Orientation = [System.Windows.Forms.Orientation]::Vertical
-    $innerSplit.Size = [System.Drawing.Size]::new($initW - 295, $initH - 160)
+    $innerSplit.Size = [System.Drawing.Size]::new($initW - 305, $initH - 166)
     $innerSplit.FixedPanel = [System.Windows.Forms.FixedPanel]::Panel2
     $innerSplit.Panel1MinSize = 320
-    $innerSplit.Panel2MinSize = 260
-    $innerSplit.SplitterDistance = ($initW - 295) - 325
+    $innerSplit.Panel2MinSize = 350
+    $innerSplit.SplitterDistance = [Math]::Max(320, ($initW - 305) - 368)
 
     $outerSplit.Panel2.Controls.Add($innerSplit)
 
-    # --- Left Pane: Queue ---
+    # --- Left Pane: Queue + Status/Error Details ---
     $leftToolbar = [System.Windows.Forms.FlowLayoutPanel]::new()
     $leftToolbar.Dock = [System.Windows.Forms.DockStyle]::Top
     $leftToolbar.Height = 32
@@ -311,15 +325,52 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $queueList.GridLines = $true
     $queueList.HideSelection = $false
     $queueList.AllowDrop = $true
-    [void]$queueList.Columns.Add('文件', 122)
+    [void]$queueList.Columns.Add('文件', 124)
     [void]$queueList.Columns.Add('状态', 62)
-    [void]$queueList.Columns.Add('耗时', 48)
-    [void]$queueList.Columns.Add('结果', 34)
+    [void]$queueList.Columns.Add('耗时', 50)
+    [void]$queueList.Columns.Add('结果', 36)
+
+    $errPanel = [System.Windows.Forms.Panel]::new()
+    $errPanel.Dock = [System.Windows.Forms.DockStyle]::Bottom
+    $errPanel.Height = 136
+    $errPanel.Padding = [System.Windows.Forms.Padding]::new(4, 3, 4, 3)
+    $errPanel.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
+
+    $errHeader = [System.Windows.Forms.Panel]::new()
+    $errHeader.Dock = [System.Windows.Forms.DockStyle]::Top
+    $errHeader.Height = 24
+
+    $lblErrTitle = [System.Windows.Forms.Label]::new()
+    $lblErrTitle.Text = '运行状态 / 错误详情'
+    $lblErrTitle.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $lblErrTitle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $lblErrTitle.Font = [System.Drawing.Font]::new('Segoe UI', 8.5, [System.Drawing.FontStyle]::Bold)
+    $lblErrTitle.ForeColor = [System.Drawing.Color]::FromArgb(40, 48, 60)
+
+    $btnCopyErr = [System.Windows.Forms.Button]::new()
+    $btnCopyErr.Text = '复制'
+    $btnCopyErr.Dock = [System.Windows.Forms.DockStyle]::Right
+    $btnCopyErr.Width = 48
+
+    $txtErrLog = [System.Windows.Forms.TextBox]::new()
+    $txtErrLog.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $txtErrLog.Multiline = $true
+    $txtErrLog.ReadOnly = $true
+    $txtErrLog.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+    $txtErrLog.WordWrap = $true
+    $txtErrLog.BackColor = [System.Drawing.Color]::FromArgb(252, 252, 254)
+    $txtErrLog.ForeColor = [System.Drawing.Color]::FromArgb(30, 36, 44)
+    $txtErrLog.Text = '就绪：队列执行日志与失败原因将显示在此处。'
+
+    $errHeader.Controls.Add($lblErrTitle)
+    $errHeader.Controls.Add($btnCopyErr)
+    $errPanel.Controls.Add($txtErrLog)
+    $errPanel.Controls.Add($errHeader)
 
     $lblDropHint = [System.Windows.Forms.Label]::new()
-    $lblDropHint.Text = "将图片或文件夹拖入窗口`r`n或点击顶部「导入图片」"
+    $lblDropHint.Text = "将图片或文件夹拖入窗口，或点击顶部「导入图片」"
     $lblDropHint.Dock = [System.Windows.Forms.DockStyle]::Bottom
-    $lblDropHint.Height = 40
+    $lblDropHint.Height = 32
     $lblDropHint.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $lblDropHint.ForeColor = [System.Drawing.Color]::DimGray
     $lblDropHint.BackColor = [System.Drawing.Color]::FromArgb(248, 249, 252)
@@ -328,12 +379,14 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $miOpenSrcDir = $queueCtx.Items.Add('打开原图目录')
     $miOpenResFile = $queueCtx.Items.Add('打开最新结果图')
     $miOpenResDir = $queueCtx.Items.Add('打开结果目录')
+    $miShowErr = $queueCtx.Items.Add('查看错误详情')
     $miRequeue = $queueCtx.Items.Add('重新排队')
     $miRemove = $queueCtx.Items.Add('从列表移除')
     $queueList.ContextMenuStrip = $queueCtx
 
     $outerSplit.Panel1.Controls.Add($queueList)
     $outerSplit.Panel1.Controls.Add($leftToolbar)
+    $outerSplit.Panel1.Controls.Add($errPanel)
     $outerSplit.Panel1.Controls.Add($lblDropHint)
 
     # --- Center Pane: Image Comparator ---
@@ -343,6 +396,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $innerSplit.Panel1.Controls.Add($compWrap.Panel)
 
     # --- Right Pane: Engine Parameters + Output + Collapsible Advanced ---
+    $cardW = 334
     $rightScroll = [System.Windows.Forms.Panel]::new()
     $rightScroll.Dock = [System.Windows.Forms.DockStyle]::Fill
     $rightScroll.AutoScroll = $true
@@ -354,13 +408,13 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $rightStack.WrapContents = $false
     $rightStack.AutoSize = $true
     $rightStack.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
-    $rightStack.Width = 292
+    $rightStack.Width = $cardW + 8
     $rightScroll.Controls.Add($rightStack)
 
     # Output group
     $grpOut = [System.Windows.Forms.GroupBox]::new()
     $grpOut.Text = '输出与队列策略'
-    $grpOut.Size = [System.Drawing.Size]::new(286, 152)
+    $grpOut.Size = [System.Drawing.Size]::new($cardW, 152)
     $rightStack.Controls.Add($grpOut)
 
     $chkAutoOut = [System.Windows.Forms.CheckBox]::new()
@@ -371,23 +425,23 @@ function Get-IUKQuickPresets([string]$KitRoot) {
 
     $txtOutDir = [System.Windows.Forms.TextBox]::new()
     $txtOutDir.Location = [System.Drawing.Point]::new(10, 48)
-    $txtOutDir.Size = [System.Drawing.Size]::new(196, 24)
+    $txtOutDir.Size = [System.Drawing.Size]::new(242, 24)
     $txtOutDir.Text = [string]$cfg.ui.output_dir
 
     $btnBrowseOut = [System.Windows.Forms.Button]::new()
     $btnBrowseOut.Text = '选目录'
-    $btnBrowseOut.Location = [System.Drawing.Point]::new(212, 46)
-    $btnBrowseOut.Size = [System.Drawing.Size]::new(64, 26)
+    $btnBrowseOut.Location = [System.Drawing.Point]::new(258, 46)
+    $btnBrowseOut.Size = [System.Drawing.Size]::new(66, 26)
 
-    $lblExist = [System.Windows.Forms.Label]::new(); $lblExist.Text = '已有文件:'; $lblExist.Location = [System.Drawing.Point]::new(10, 84); $lblExist.Size = [System.Drawing.Size]::new(70, 22)
-    $cmbExist = [System.Windows.Forms.ComboBox]::new(); $cmbExist.DropDownStyle = 'DropDownList'; $cmbExist.Location = [System.Drawing.Point]::new(86, 80); $cmbExist.Size = [System.Drawing.Size]::new(190, 24)
+    $lblExist = [System.Windows.Forms.Label]::new(); $lblExist.Text = '已有文件:'; $lblExist.Location = [System.Drawing.Point]::new(10, 84); $lblExist.Size = [System.Drawing.Size]::new(76, 22)
+    $cmbExist = [System.Windows.Forms.ComboBox]::new(); $cmbExist.DropDownStyle = 'DropDownList'; $cmbExist.Location = [System.Drawing.Point]::new(90, 80); $cmbExist.Size = [System.Drawing.Size]::new(234, 24)
     $cmbExist.Items.AddRange(@('自动加序号 (_1, _2)', '覆盖已有文件', '停止并提示错误'))
     $existKeys = @('rename', 'overwrite', 'error')
     $ei = [Array]::IndexOf($existKeys, [string]$cfg.anime4kcpp.existing_output)
     $cmbExist.SelectedIndex = if ($ei -ge 0) { $ei } else { 0 }
 
-    $lblFail = [System.Windows.Forms.Label]::new(); $lblFail.Text = '单张失败:'; $lblFail.Location = [System.Drawing.Point]::new(10, 116); $lblFail.Size = [System.Drawing.Size]::new(70, 22)
-    $cmbFail = [System.Windows.Forms.ComboBox]::new(); $cmbFail.DropDownStyle = 'DropDownList'; $cmbFail.Location = [System.Drawing.Point]::new(86, 112); $cmbFail.Size = [System.Drawing.Size]::new(190, 24)
+    $lblFail = [System.Windows.Forms.Label]::new(); $lblFail.Text = '单张失败:'; $lblFail.Location = [System.Drawing.Point]::new(10, 116); $lblFail.Size = [System.Drawing.Size]::new(76, 22)
+    $cmbFail = [System.Windows.Forms.ComboBox]::new(); $cmbFail.DropDownStyle = 'DropDownList'; $cmbFail.Location = [System.Drawing.Point]::new(90, 112); $cmbFail.Size = [System.Drawing.Size]::new(234, 24)
     $cmbFail.Items.AddRange(@('继续处理下一张', '立即停止队列'))
     $cmbFail.SelectedIndex = if ([string]$cfg.ui.fail_policy -eq 'stop') { 1 } else { 0 }
 
@@ -396,53 +450,57 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     # Anime4KCPP basic group
     $grpAcBasic = [System.Windows.Forms.GroupBox]::new()
     $grpAcBasic.Text = 'Anime4KCPP / ACNet (2x PNG)'
-    $grpAcBasic.Size = [System.Drawing.Size]::new(286, 98)
+    $grpAcBasic.Size = [System.Drawing.Size]::new($cardW, 98)
     $rightStack.Controls.Add($grpAcBasic)
 
-    $lblAcM = [System.Windows.Forms.Label]::new(); $lblAcM.Text = '模型:'; $lblAcM.Location = [System.Drawing.Point]::new(10, 26); $lblAcM.Size = [System.Drawing.Size]::new(45, 22)
-    $cmbAcModel = [System.Windows.Forms.ComboBox]::new(); $cmbAcModel.DropDownStyle = 'DropDownList'; $cmbAcModel.Location = [System.Drawing.Point]::new(58, 22); $cmbAcModel.Size = [System.Drawing.Size]::new(158, 24)
-    $btnAcRefresh = [System.Windows.Forms.Button]::new(); $btnAcRefresh.Text = '刷新'; $btnAcRefresh.Location = [System.Drawing.Point]::new(222, 21); $btnAcRefresh.Size = [System.Drawing.Size]::new(54, 26)
-    $lblAcNote = [System.Windows.Forms.Label]::new(); $lblAcNote.Text = '直接放大 2 倍输出 PNG（支持中文路径）'; $lblAcNote.Location = [System.Drawing.Point]::new(10, 58); $lblAcNote.Size = [System.Drawing.Size]::new(266, 28); $lblAcNote.ForeColor = [System.Drawing.Color]::DimGray
+    $lblAcM = [System.Windows.Forms.Label]::new(); $lblAcM.Text = '模型:'; $lblAcM.Location = [System.Drawing.Point]::new(10, 26); $lblAcM.Size = [System.Drawing.Size]::new(48, 22)
+    $cmbAcModel = [System.Windows.Forms.ComboBox]::new(); $cmbAcModel.DropDownStyle = 'DropDownList'; $cmbAcModel.Location = [System.Drawing.Point]::new(62, 22); $cmbAcModel.Size = [System.Drawing.Size]::new(196, 24)
+    $btnAcRefresh = [System.Windows.Forms.Button]::new(); $btnAcRefresh.Text = '刷新'; $btnAcRefresh.Location = [System.Drawing.Point]::new(264, 21); $btnAcRefresh.Size = [System.Drawing.Size]::new(60, 26)
+    $lblAcNote = [System.Windows.Forms.Label]::new(); $lblAcNote.Text = '直接放大 2 倍输出 PNG（支持中文路径）'; $lblAcNote.Location = [System.Drawing.Point]::new(10, 58); $lblAcNote.Size = [System.Drawing.Size]::new(314, 28); $lblAcNote.ForeColor = [System.Drawing.Color]::DimGray
     $grpAcBasic.Controls.AddRange(@($lblAcM, $cmbAcModel, $btnAcRefresh, $lblAcNote))
 
     # NCNN basic group
     $grpNcnnBasic = [System.Windows.Forms.GroupBox]::new()
     $grpNcnnBasic.Text = 'Real-ESRGAN / NCNN Vulkan'
-    $grpNcnnBasic.Size = [System.Drawing.Size]::new(286, 102)
+    $grpNcnnBasic.Size = [System.Drawing.Size]::new($cardW, 102)
     $rightStack.Controls.Add($grpNcnnBasic)
 
-    $lblNM = [System.Windows.Forms.Label]::new(); $lblNM.Text = '模型:'; $lblNM.Location = [System.Drawing.Point]::new(10, 26); $lblNM.Size = [System.Drawing.Size]::new(45, 22)
-    $cmbNcnnModel = [System.Windows.Forms.ComboBox]::new(); $cmbNcnnModel.DropDownStyle = 'DropDownList'; $cmbNcnnModel.Location = [System.Drawing.Point]::new(58, 22); $cmbNcnnModel.Size = [System.Drawing.Size]::new(158, 24)
-    $btnNcnnRefresh = [System.Windows.Forms.Button]::new(); $btnNcnnRefresh.Text = '刷新'; $btnNcnnRefresh.Location = [System.Drawing.Point]::new(222, 21); $btnNcnnRefresh.Size = [System.Drawing.Size]::new(54, 26)
-    $lblNS = [System.Windows.Forms.Label]::new(); $lblNS.Text = '倍率:'; $lblNS.Location = [System.Drawing.Point]::new(10, 62); $lblNS.Size = [System.Drawing.Size]::new(45, 22)
-    $cmbNcnnScale = [System.Windows.Forms.ComboBox]::new(); $cmbNcnnScale.DropDownStyle = 'DropDownList'; $cmbNcnnScale.Items.AddRange(@('auto', '2', '3', '4')); $cmbNcnnScale.Location = [System.Drawing.Point]::new(58, 58); $cmbNcnnScale.Size = [System.Drawing.Size]::new(90, 24)
+    $lblNM = [System.Windows.Forms.Label]::new(); $lblNM.Text = '模型:'; $lblNM.Location = [System.Drawing.Point]::new(10, 26); $lblNM.Size = [System.Drawing.Size]::new(48, 22)
+    $cmbNcnnModel = [System.Windows.Forms.ComboBox]::new(); $cmbNcnnModel.DropDownStyle = 'DropDownList'; $cmbNcnnModel.Location = [System.Drawing.Point]::new(62, 22); $cmbNcnnModel.Size = [System.Drawing.Size]::new(196, 24)
+    $btnNcnnRefresh = [System.Windows.Forms.Button]::new(); $btnNcnnRefresh.Text = '刷新'; $btnNcnnRefresh.Location = [System.Drawing.Point]::new(264, 21); $btnNcnnRefresh.Size = [System.Drawing.Size]::new(60, 26)
+    $lblNS = [System.Windows.Forms.Label]::new(); $lblNS.Text = '倍率:'; $lblNS.Location = [System.Drawing.Point]::new(10, 62); $lblNS.Size = [System.Drawing.Size]::new(48, 22)
+    $cmbNcnnScale = [System.Windows.Forms.ComboBox]::new(); $cmbNcnnScale.DropDownStyle = 'DropDownList'; $cmbNcnnScale.Items.AddRange(@('auto', '2', '3', '4')); $cmbNcnnScale.Location = [System.Drawing.Point]::new(62, 58); $cmbNcnnScale.Size = [System.Drawing.Size]::new(100, 24)
     $grpNcnnBasic.Controls.AddRange(@($lblNM, $cmbNcnnModel, $btnNcnnRefresh, $lblNS, $cmbNcnnScale))
 
     # Magpie basic group
     $grpMagpieBasic = [System.Windows.Forms.GroupBox]::new()
     $grpMagpieBasic.Text = 'MagpieFX / HLSL'
-    $grpMagpieBasic.Size = [System.Drawing.Size]::new(286, 178)
+    $grpMagpieBasic.Size = [System.Drawing.Size]::new($cardW, 182)
     $rightStack.Controls.Add($grpMagpieBasic)
 
-    $lblMST = [System.Windows.Forms.Label]::new(); $lblMST.Text = '方式:'; $lblMST.Location = [System.Drawing.Point]::new(10, 24); $lblMST.Size = [System.Drawing.Size]::new(45, 22)
-    $cmbMagType = [System.Windows.Forms.ComboBox]::new(); $cmbMagType.DropDownStyle = 'DropDownList'; $cmbMagType.Items.AddRange(@('mode', 'family', 'effect')); $cmbMagType.Location = [System.Drawing.Point]::new(58, 20); $cmbMagType.Size = [System.Drawing.Size]::new(110, 24)
-    $btnMagRefresh = [System.Windows.Forms.Button]::new(); $btnMagRefresh.Text = '刷新'; $btnMagRefresh.Location = [System.Drawing.Point]::new(176, 19); $btnMagRefresh.Size = [System.Drawing.Size]::new(100, 26)
-    $lblMM = [System.Windows.Forms.Label]::new(); $lblMM.Text = '方案:'; $lblMM.Location = [System.Drawing.Point]::new(10, 56); $lblMM.Size = [System.Drawing.Size]::new(45, 22)
-    $cmbMagMode = [System.Windows.Forms.ComboBox]::new(); $cmbMagMode.DropDownStyle = 'DropDownList'; $cmbMagMode.Location = [System.Drawing.Point]::new(58, 52); $cmbMagMode.Size = [System.Drawing.Size]::new(218, 24)
-    $lblMT = [System.Windows.Forms.Label]::new(); $lblMT.Text = '档位:'; $lblMT.Location = [System.Drawing.Point]::new(10, 88); $lblMT.Size = [System.Drawing.Size]::new(45, 22)
-    $cmbMagTier = [System.Windows.Forms.ComboBox]::new(); $cmbMagTier.DropDownStyle = 'DropDownList'; $cmbMagTier.Location = [System.Drawing.Point]::new(58, 84); $cmbMagTier.Size = [System.Drawing.Size]::new(218, 24)
-    $txtMagPreview = [System.Windows.Forms.TextBox]::new(); $txtMagPreview.Location = [System.Drawing.Point]::new(10, 114); $txtMagPreview.Size = [System.Drawing.Size]::new(266, 54); $txtMagPreview.Multiline = $true; $txtMagPreview.ReadOnly = $true; $txtMagPreview.ScrollBars = 'Vertical'
+    $lblMST = [System.Windows.Forms.Label]::new(); $lblMST.Text = '方式:'; $lblMST.Location = [System.Drawing.Point]::new(10, 24); $lblMST.Size = [System.Drawing.Size]::new(48, 22)
+    $cmbMagType = [System.Windows.Forms.ComboBox]::new(); $cmbMagType.DropDownStyle = 'DropDownList'; $cmbMagType.Items.AddRange(@('mode', 'family', 'effect')); $cmbMagType.Location = [System.Drawing.Point]::new(62, 20); $cmbMagType.Size = [System.Drawing.Size]::new(136, 24)
+    $btnMagRefresh = [System.Windows.Forms.Button]::new(); $btnMagRefresh.Text = '刷新'; $btnMagRefresh.Location = [System.Drawing.Point]::new(206, 19); $btnMagRefresh.Size = [System.Drawing.Size]::new(118, 26)
+    $lblMM = [System.Windows.Forms.Label]::new(); $lblMM.Text = '方案:'; $lblMM.Location = [System.Drawing.Point]::new(10, 56); $lblMM.Size = [System.Drawing.Size]::new(48, 22)
+    $cmbMagMode = [System.Windows.Forms.ComboBox]::new(); $cmbMagMode.DropDownStyle = 'DropDownList'; $cmbMagMode.Location = [System.Drawing.Point]::new(62, 52); $cmbMagMode.Size = [System.Drawing.Size]::new(262, 24)
+    $lblMT = [System.Windows.Forms.Label]::new(); $lblMT.Text = '档位:'; $lblMT.Location = [System.Drawing.Point]::new(10, 88); $lblMT.Size = [System.Drawing.Size]::new(48, 22)
+    $cmbMagTier = [System.Windows.Forms.ComboBox]::new(); $cmbMagTier.DropDownStyle = 'DropDownList'; $cmbMagTier.Location = [System.Drawing.Point]::new(62, 84); $cmbMagTier.Size = [System.Drawing.Size]::new(262, 24)
+    $txtMagPreview = [System.Windows.Forms.TextBox]::new(); $txtMagPreview.Location = [System.Drawing.Point]::new(10, 116); $txtMagPreview.Size = [System.Drawing.Size]::new(314, 56); $txtMagPreview.Multiline = $true; $txtMagPreview.ReadOnly = $true; $txtMagPreview.ScrollBars = 'Vertical'
     $grpMagpieBasic.Controls.AddRange(@($lblMST, $cmbMagType, $btnMagRefresh, $lblMM, $cmbMagMode, $lblMT, $cmbMagTier, $txtMagPreview))
 
     # Dynamic plugin panel slot (gui\*Panel.ps1 from PR 3 / PR 5)
     $pluginHost = [System.Windows.Forms.Panel]::new()
     $pluginHost.AutoSize = $true
     $pluginHost.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
-    $pluginHost.Width = 286
+    $pluginHost.Width = $cardW
     $rightStack.Controls.Add($pluginHost)
 
     $guiPluginDir = Join-Path $Root 'gui'
     if (Test-Path -LiteralPath $guiPluginDir -PathType Container) {
+        $mmDialogScript = Join-Path $guiPluginDir 'ModelManagerDialog.ps1'
+        if (Test-Path -LiteralPath $mmDialogScript -PathType Leaf) {
+            try { . $mmDialogScript } catch {}
+        }
         foreach ($ps in Get-ChildItem -LiteralPath $guiPluginDir -Filter '*Panel.ps1' -File | Sort-Object Name) {
             try {
                 . $ps.FullName
@@ -451,7 +509,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         if ((Get-Command 'New-IUKComfyUIPanel' -ErrorAction SilentlyContinue) -and $Script:IUKHasComfy) {
             try {
                 $cp = New-IUKComfyUIPanel -Root $Root
-                $cp.Panel.Width = 286
+                $cp.Panel.Width = $cardW
                 $cp.Panel.Visible = $false
                 $pluginHost.Controls.Add($cp.Panel)
                 $state.PluginPanels['comfyui'] = $cp
@@ -460,7 +518,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         if ((Get-Command 'New-IUKRealCUGANPanel' -ErrorAction SilentlyContinue) -and $Script:IUKHasRealCugan) {
             try {
                 $rp = New-IUKRealCUGANPanel -Root $Root
-                $rp.Panel.Width = 286
+                $rp.Panel.Width = $cardW
                 $rp.Panel.Visible = $false
                 $pluginHost.Controls.Add($rp.Panel)
                 $state.PluginPanels['realcugan'] = $rp
@@ -471,35 +529,35 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     # Collapsible Advanced Toggle & Group (Collapsed by default)
     $btnAdvToggle = [System.Windows.Forms.Button]::new()
     $btnAdvToggle.Text = '▶ 高级参数（默认折叠）'
-    $btnAdvToggle.Size = [System.Drawing.Size]::new(286, 28)
+    $btnAdvToggle.Size = [System.Drawing.Size]::new($cardW, 28)
     $btnAdvToggle.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $rightStack.Controls.Add($btnAdvToggle)
 
     $grpAdv = [System.Windows.Forms.GroupBox]::new()
     $grpAdv.Text = '高级选项'
-    $grpAdv.Size = [System.Drawing.Size]::new(286, 232)
+    $grpAdv.Size = [System.Drawing.Size]::new($cardW, 232)
     $grpAdv.Visible = $false
     $rightStack.Controls.Add($grpAdv)
 
-    $lblAcP = [System.Windows.Forms.Label]::new(); $lblAcP.Text = 'AC 处理器:'; $lblAcP.Location = [System.Drawing.Point]::new(10, 24); $lblAcP.Size = [System.Drawing.Size]::new(76, 22)
-    $cmbAcProc = [System.Windows.Forms.ComboBox]::new(); $cmbAcProc.DropDownStyle = 'DropDownList'; $cmbAcProc.Items.AddRange(@('auto', 'cuda', 'opencl', 'cpu')); $cmbAcProc.Location = [System.Drawing.Point]::new(90, 20); $cmbAcProc.Size = [System.Drawing.Size]::new(90, 24)
-    $lblAcDev = [System.Windows.Forms.Label]::new(); $lblAcDev.Text = '设备:'; $lblAcDev.Location = [System.Drawing.Point]::new(186, 24); $lblAcDev.Size = [System.Drawing.Size]::new(36, 22)
-    $numAcDev = [System.Windows.Forms.NumericUpDown]::new(); $numAcDev.Location = [System.Drawing.Point]::new(224, 20); $numAcDev.Width = 52; $numAcDev.Maximum = 65535
-    $lblAcBatch = [System.Windows.Forms.Label]::new(); $lblAcBatch.Text = 'AC 批大小:'; $lblAcBatch.Location = [System.Drawing.Point]::new(10, 56); $lblAcBatch.Size = [System.Drawing.Size]::new(76, 22)
-    $numAcBatch = [System.Windows.Forms.NumericUpDown]::new(); $numAcBatch.Location = [System.Drawing.Point]::new(90, 52); $numAcBatch.Width = 70; $numAcBatch.Minimum = 1; $numAcBatch.Maximum = 256
+    $lblAcP = [System.Windows.Forms.Label]::new(); $lblAcP.Text = 'AC 处理器:'; $lblAcP.Location = [System.Drawing.Point]::new(10, 24); $lblAcP.Size = [System.Drawing.Size]::new(82, 22)
+    $cmbAcProc = [System.Windows.Forms.ComboBox]::new(); $cmbAcProc.DropDownStyle = 'DropDownList'; $cmbAcProc.Items.AddRange(@('auto', 'cuda', 'opencl', 'cpu')); $cmbAcProc.Location = [System.Drawing.Point]::new(96, 20); $cmbAcProc.Size = [System.Drawing.Size]::new(108, 24)
+    $lblAcDev = [System.Windows.Forms.Label]::new(); $lblAcDev.Text = '设备:'; $lblAcDev.Location = [System.Drawing.Point]::new(212, 24); $lblAcDev.Size = [System.Drawing.Size]::new(44, 22)
+    $numAcDev = [System.Windows.Forms.NumericUpDown]::new(); $numAcDev.Location = [System.Drawing.Point]::new(260, 20); $numAcDev.Width = 64; $numAcDev.Maximum = 65535
+    $lblAcBatch = [System.Windows.Forms.Label]::new(); $lblAcBatch.Text = 'AC 批大小:'; $lblAcBatch.Location = [System.Drawing.Point]::new(10, 56); $lblAcBatch.Size = [System.Drawing.Size]::new(82, 22)
+    $numAcBatch = [System.Windows.Forms.NumericUpDown]::new(); $numAcBatch.Location = [System.Drawing.Point]::new(96, 52); $numAcBatch.Width = 76; $numAcBatch.Minimum = 1; $numAcBatch.Maximum = 256
 
-    $lblNT = [System.Windows.Forms.Label]::new(); $lblNT.Text = 'NCNN Tile:'; $lblNT.Location = [System.Drawing.Point]::new(10, 90); $lblNT.Size = [System.Drawing.Size]::new(76, 22)
-    $txtNcnnTile = [System.Windows.Forms.TextBox]::new(); $txtNcnnTile.Location = [System.Drawing.Point]::new(90, 86); $txtNcnnTile.Size = [System.Drawing.Size]::new(60, 24)
-    $lblNG = [System.Windows.Forms.Label]::new(); $lblNG.Text = 'GPU:'; $lblNG.Location = [System.Drawing.Point]::new(160, 90); $lblNG.Size = [System.Drawing.Size]::new(36, 22)
-    $txtNcnnGpu = [System.Windows.Forms.TextBox]::new(); $txtNcnnGpu.Location = [System.Drawing.Point]::new(198, 86); $txtNcnnGpu.Size = [System.Drawing.Size]::new(78, 24)
-    $lblNJ = [System.Windows.Forms.Label]::new(); $lblNJ.Text = '线程:'; $lblNJ.Location = [System.Drawing.Point]::new(10, 122); $lblNJ.Size = [System.Drawing.Size]::new(76, 22)
-    $txtNcnnThreads = [System.Windows.Forms.TextBox]::new(); $txtNcnnThreads.Location = [System.Drawing.Point]::new(90, 118); $txtNcnnThreads.Size = [System.Drawing.Size]::new(100, 24)
-    $chkNcnnTta = [System.Windows.Forms.CheckBox]::new(); $chkNcnnTta.Text = 'TTA'; $chkNcnnTta.Location = [System.Drawing.Point]::new(204, 120); $chkNcnnTta.AutoSize = $true
+    $lblNT = [System.Windows.Forms.Label]::new(); $lblNT.Text = 'NCNN Tile:'; $lblNT.Location = [System.Drawing.Point]::new(10, 90); $lblNT.Size = [System.Drawing.Size]::new(82, 22)
+    $txtNcnnTile = [System.Windows.Forms.TextBox]::new(); $txtNcnnTile.Location = [System.Drawing.Point]::new(96, 86); $txtNcnnTile.Size = [System.Drawing.Size]::new(76, 24)
+    $lblNG = [System.Windows.Forms.Label]::new(); $lblNG.Text = 'GPU:'; $lblNG.Location = [System.Drawing.Point]::new(186, 90); $lblNG.Size = [System.Drawing.Size]::new(40, 22)
+    $txtNcnnGpu = [System.Windows.Forms.TextBox]::new(); $txtNcnnGpu.Location = [System.Drawing.Point]::new(230, 86); $txtNcnnGpu.Size = [System.Drawing.Size]::new(94, 24)
+    $lblNJ = [System.Windows.Forms.Label]::new(); $lblNJ.Text = '线程:'; $lblNJ.Location = [System.Drawing.Point]::new(10, 122); $lblNJ.Size = [System.Drawing.Size]::new(82, 22)
+    $txtNcnnThreads = [System.Windows.Forms.TextBox]::new(); $txtNcnnThreads.Location = [System.Drawing.Point]::new(96, 118); $txtNcnnThreads.Size = [System.Drawing.Size]::new(120, 24)
+    $chkNcnnTta = [System.Windows.Forms.CheckBox]::new(); $chkNcnnTta.Text = 'TTA'; $chkNcnnTta.Location = [System.Drawing.Point]::new(230, 120); $chkNcnnTta.AutoSize = $true
 
-    $lblMRaw = [System.Windows.Forms.Label]::new(); $lblMRaw.Text = 'HLSL 文件:'; $lblMRaw.Location = [System.Drawing.Point]::new(10, 156); $lblMRaw.Size = [System.Drawing.Size]::new(76, 22)
-    $cmbMagRaw = [System.Windows.Forms.ComboBox]::new(); $cmbMagRaw.DropDownStyle = 'DropDownList'; $cmbMagRaw.Location = [System.Drawing.Point]::new(90, 152); $cmbMagRaw.Size = [System.Drawing.Size]::new(186, 24)
-    $btnOpenMagCfg = [System.Windows.Forms.Button]::new(); $btnOpenMagCfg.Text = 'Magpie 配置'; $btnOpenMagCfg.Location = [System.Drawing.Point]::new(10, 188); $btnOpenMagCfg.Size = [System.Drawing.Size]::new(128, 28)
-    $btnOpenHlslDir = [System.Windows.Forms.Button]::new(); $btnOpenHlslDir.Text = 'HLSL 目录'; $btnOpenHlslDir.Location = [System.Drawing.Point]::new(148, 188); $btnOpenHlslDir.Size = [System.Drawing.Size]::new(128, 28)
+    $lblMRaw = [System.Windows.Forms.Label]::new(); $lblMRaw.Text = 'HLSL 文件:'; $lblMRaw.Location = [System.Drawing.Point]::new(10, 156); $lblMRaw.Size = [System.Drawing.Size]::new(82, 22)
+    $cmbMagRaw = [System.Windows.Forms.ComboBox]::new(); $cmbMagRaw.DropDownStyle = 'DropDownList'; $cmbMagRaw.Location = [System.Drawing.Point]::new(96, 152); $cmbMagRaw.Size = [System.Drawing.Size]::new(228, 24)
+    $btnOpenMagCfg = [System.Windows.Forms.Button]::new(); $btnOpenMagCfg.Text = 'Magpie 配置'; $btnOpenMagCfg.Location = [System.Drawing.Point]::new(10, 188); $btnOpenMagCfg.Size = [System.Drawing.Size]::new(152, 28)
+    $btnOpenHlslDir = [System.Windows.Forms.Button]::new(); $btnOpenHlslDir.Text = 'HLSL 目录'; $btnOpenHlslDir.Location = [System.Drawing.Point]::new(172, 188); $btnOpenHlslDir.Size = [System.Drawing.Size]::new(152, 28)
 
     $grpAdv.Controls.AddRange(@(
         $lblAcP, $cmbAcProc, $lblAcDev, $numAcDev, $lblAcBatch, $numAcBatch,
@@ -509,7 +567,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
 
     $btnSaveCfg = [System.Windows.Forms.Button]::new()
     $btnSaveCfg.Text = '保存设置'
-    $btnSaveCfg.Size = [System.Drawing.Size]::new(286, 30)
+    $btnSaveCfg.Size = [System.Drawing.Size]::new($cardW, 30)
     $rightStack.Controls.Add($btnSaveCfg)
 
     # Assemble Form in WinForms reverse-Z docking order
@@ -649,6 +707,21 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         $btnBrowseOut.Enabled = -not $chkAutoOut.Checked
     }
 
+    $showStatusLog = {
+        param([string]$Title, [string]$Body, [switch]$IsError)
+        $lblErrTitle.Text = if ($Title) { $Title } else { '运行状态 / 错误详情' }
+        $txtErrLog.Text = [string]$Body
+        if ($IsError) {
+            $lblErrTitle.ForeColor = [System.Drawing.Color]::Firebrick
+            $txtErrLog.BackColor = [System.Drawing.Color]::FromArgb(255, 242, 242)
+            $txtErrLog.ForeColor = [System.Drawing.Color]::DarkRed
+        } else {
+            $lblErrTitle.ForeColor = [System.Drawing.Color]::FromArgb(40, 48, 60)
+            $txtErrLog.BackColor = [System.Drawing.Color]::FromArgb(252, 252, 254)
+            $txtErrLog.ForeColor = [System.Drawing.Color]::FromArgb(30, 36, 44)
+        }
+    }
+
     $refreshQueueUI = {
         $state.Syncing = $true
         try {
@@ -689,6 +762,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             $progress.Value = [Math]::Min($progress.Maximum, $doneCount)
             $curText = if ($state.CurrentItem) { "当前: $($state.CurrentItem.FileName)" } elseif ($state.IsRunning) { '运行中' } else { '就绪' }
             $lblSummary.Text = "已完成: $($sum.Completed) | 失败: $($sum.Failed) | 待处理: $($sum.Pending) | $curText"
+            $lblSummary.ForeColor = if ($sum.Failed -gt 0) { [System.Drawing.Color]::Firebrick } else { [System.Drawing.SystemColors]::ControlText }
             $btnCancelPending.Enabled = ($sum.Pending -gt 0)
             $btnAbort.Enabled = $state.IsRunning
             $btnStart.Enabled = (-not $state.IsRunning -and $sum.Pending -gt 0)
@@ -882,6 +956,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         $next.ErrorMessage = ''
         $state.CurrentItem = $next
         $state.CurrentRunLog.Clear()
+        & $showStatusLog "运行中 - $($next.FileName)" "引擎: $($opts.Engine)`r`n输入: $($next.InputPath)`r`n输出: $($next.OutputPath)"
         $state.CurrentRunner = [ImageUpscaleKit.Execution.IukAsyncProcessRunner]::new('pwsh.exe', $upscaleArgs, $Root)
         & $refreshQueueUI
         $pollTimer.Start()
@@ -894,8 +969,13 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             $pollTimer.Stop()
             return
         }
+        $gotLines = $false
         foreach ($line in $runner.DrainOutput()) {
             [void]$state.CurrentRunLog.Add($line)
+            $gotLines = $true
+        }
+        if ($gotLines -and -not $runner.HasExited) {
+            & $showStatusLog "运行中 - $($item.FileName)" (($state.CurrentRunLog | Select-Object -Last 12) -join "`r`n")
         }
         if (-not $runner.HasExited) { return }
 
@@ -913,6 +993,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             $item.Status = '已取消'
             $item.ErrorMessage = '用户中止'
             $state.StopRequested = $true
+            & $showStatusLog "已取消 - $($item.FileName)" '用户中止了当前任务。'
         } elseif ($exitCode -eq 0 -and (Test-Path -LiteralPath $item.OutputPath -PathType Leaf)) {
             $item.Status = '已完成'
             $state.LastResultPath = $item.OutputPath
@@ -929,9 +1010,12 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             if ($queueList.SelectedIndices.Count -eq 0 -or $state.Queue[$queueList.SelectedIndices[0]].Id -eq $item.Id) {
                 & $loadQueueItemToComparator $item
             }
+            & $showStatusLog "已完成 - $($item.FileName)" ("输出: {0}`r`n耗时: {1:F2}s" -f $item.OutputPath, ($elapsed / 1000.0))
         } else {
             $item.Status = '失败'
-            $item.ErrorMessage = ($state.CurrentRunLog | Select-Object -Last 6) -join "`r`n"
+            $nonEmpty = @($state.CurrentRunLog | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 20)
+            $item.ErrorMessage = if ($nonEmpty.Count -gt 0) { $nonEmpty -join "`r`n" } else { "退出码: $exitCode（未捕获输出详情，请打开日志目录排查）" }
+            & $showStatusLog "失败 - $($item.FileName)" $item.ErrorMessage -IsError
             if ($cmbFail.SelectedIndex -eq 1) {
                 $state.StopRequested = $true
             }
@@ -1033,7 +1117,29 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         if ($state.Syncing -or $queueList.SelectedIndices.Count -eq 0) { return }
         $idx = $queueList.SelectedIndices[0]
         if ($idx -ge 0 -and $idx -lt $state.Queue.Count) {
-            & $loadQueueItemToComparator $state.Queue[$idx]
+            $selItem = $state.Queue[$idx]
+            & $loadQueueItemToComparator $selItem
+            if ($selItem.Status -eq '失败' -and $selItem.ErrorMessage) {
+                & $showStatusLog "失败 - $($selItem.FileName)" $selItem.ErrorMessage -IsError
+            } elseif ($selItem.Status -eq '已完成' -and $selItem.OutputPath) {
+                & $showStatusLog "已完成 - $($selItem.FileName)" ("输出: {0}`r`n耗时: {1:F2}s" -f $selItem.OutputPath, ($selItem.ElapsedMs / 1000.0))
+            } elseif (-not $state.IsRunning) {
+                & $showStatusLog "状态 - $($selItem.FileName)" ("当前状态: {0}`r`n输入: {1}" -f $selItem.Status, $selItem.InputPath)
+            }
+        }
+    })
+
+    $btnCopyErr.Add_Click({
+        if (-not [string]::IsNullOrEmpty($txtErrLog.Text)) {
+            [System.Windows.Forms.Clipboard]::SetText($txtErrLog.Text)
+        }
+    })
+
+    $miShowErr.Add_Click({
+        if ($queueList.SelectedIndices.Count -gt 0) {
+            $q = $state.Queue[$queueList.SelectedIndices[0]]
+            $detail = if ($q.ErrorMessage) { $q.ErrorMessage } elseif ($q.OutputPath) { "输出路径: $($q.OutputPath)" } else { "当前状态: $($q.Status)" }
+            [System.Windows.Forms.MessageBox]::Show($form, $detail, "任务详情 - $($q.FileName)") | Out-Null
         }
     })
 
@@ -1133,6 +1239,22 @@ function Get-IUKQuickPresets([string]$KitRoot) {
         & $refreshAcModels; & $refreshNcnnModels; & $refreshMagpie; & $refreshBackendStatus
     })
 
+    $btnModelMgr.Add_Click({
+        if (-not (Get-Command 'Show-IUKModelManagerDialog' -ErrorAction SilentlyContinue)) {
+            [System.Windows.Forms.MessageBox]::Show($form, '未找到 ModelManagerDialog 模块，请确保已安装 PR #5 权重管理脚本。') | Out-Null
+            return
+        }
+        $comfyDir = ''
+        if ($state.PluginPanels.ContainsKey('comfyui') -and $state.PluginPanels['comfyui'].Context.TxtDir) {
+            $comfyDir = [string]$state.PluginPanels['comfyui'].Context.TxtDir.Text.Trim()
+        }
+        Show-IUKModelManagerDialog -Root $Root -ComfyInstallDir $comfyDir -OwnerForm $form
+        & $refreshAcModels; & $refreshNcnnModels; & $refreshBackendStatus
+        if ($state.PluginPanels.ContainsKey('comfyui') -and $state.PluginPanels['comfyui'].RefreshModels) {
+            try { & $state.PluginPanels['comfyui'].RefreshModels } catch {}
+        }
+    })
+
     $startQueueAction = {
         if ($state.IsRunning) { return }
         if (-not (& $saveCurrentConfig)) { return }
@@ -1214,6 +1336,10 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             OutputDirText = $txtOutDir
             SummaryLabel = $lblSummary
             ProgressBar = $progress
+            ErrorLogText = $txtErrLog
+            BottomBarTable = $bottomGrid
+            BottomButtonPanel = $bottomBtnPanel
+            ModelManagerButton = $btnModelMgr
         }
         Actions = @{
             EnqueuePaths = $enqueuePaths
@@ -1223,6 +1349,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
             CancelPending = $cancelPendingAction
             AbortCurrent = $abortCurrentAction
             SaveConfig = $saveCurrentConfig
+            ShowStatusLog = $showStatusLog
         }
     }
 

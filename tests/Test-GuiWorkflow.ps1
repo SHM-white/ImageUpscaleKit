@@ -64,6 +64,12 @@ try {
     }
     Assert (($magArgs -join ' ') -match '-Engine magpie.*-MagpieFamily ACNet') "Invalid magpie args: $($magArgs -join ' ')"
 
+    $comfyArgs = Build-IUKUpscaleArguments -UpscaleScriptPath (Join-Path $root 'Upscale.ps1') -Item $qItem -Options @{
+        Engine = 'comfyui'; ComfyPreset = 'hat_sr_x4'; ComfyParams = @{ model_name = '4xUltrasharp.pt' }
+    }
+    Assert ($comfyArgs -contains '-ComfyParamsJson') "ComfyUI args missing -ComfyParamsJson: $($comfyArgs -join ' ')"
+    Assert (($comfyArgs -join ' ') -match '4xUltrasharp\.pt') "ComfyUI args missing model override in JSON: $($comfyArgs -join ' ')"
+
     # 3. IukAsyncProcessRunner output & KillTree verification
     $runner = [ImageUpscaleKit.Execution.IukAsyncProcessRunner]::new(
         'pwsh.exe',
@@ -102,15 +108,22 @@ try {
         $form.Show()
         [System.Windows.Forms.Application]::DoEvents()
 
-        # Resize test: 1080x680 -> 1920x1080
+        # Resize test: 1080x680 -> 1920x1080 (including bottom-bar button containment & right panel bounds)
         $form.Size = [System.Drawing.Size]::new(1080, 680)
         $form.PerformLayout()
         [System.Windows.Forms.Application]::DoEvents()
         Assert ($win.Controls.Comparator.Control.Width -gt 200 -and $win.Controls.Comparator.Control.Height -gt 200) 'Comparator too small at 1080x680'
+        Assert ($win.Controls.BottomButtonPanel.Right -le $win.Controls.BottomBar.ClientSize.Width) "BottomButtonPanel overflowed at 1080x680: Right=$($win.Controls.BottomButtonPanel.Right) vs ClientWidth=$($win.Controls.BottomBar.ClientSize.Width)"
         $form.Size = [System.Drawing.Size]::new(1920, 1080)
         $form.PerformLayout()
         [System.Windows.Forms.Application]::DoEvents()
         Assert ($win.Controls.Comparator.Control.Width -gt 1000 -and $win.Controls.Comparator.Control.Height -gt 650) 'Comparator did not expand at 1920x1080'
+        Assert ($win.Controls.BottomButtonPanel.Right -le $win.Controls.BottomBar.ClientSize.Width) "BottomButtonPanel overflowed at 1920x1080: Right=$($win.Controls.BottomButtonPanel.Right) vs ClientWidth=$($win.Controls.BottomBar.ClientSize.Width)"
+
+        # Error log panel visibility & failed queue selection display
+        Assert ($null -ne $win.Controls.ErrorLogText) 'Missing ErrorLogText control'
+        & $win.Actions.ShowStatusLog '测试失败' 'MissingModel: test.pth not found' -IsError
+        Assert ($win.Controls.ErrorLogText.Text -match 'MissingModel') 'ShowStatusLog did not update ErrorLogText'
 
         # Advanced panel collapsed by default and toggles open
         Assert (-not $win.Controls.AdvancedGroup.Visible) 'Advanced panel should start collapsed'
@@ -134,7 +147,16 @@ try {
         Assert ($win.Controls.Comparator.Control.ResultCount -eq 2) 'Expected 2 results bound to comparator'
         Assert ($win.Controls.Comparator.ResultSelector.Items.Count -eq 2) 'ResultSelector dropdown mismatch'
 
-        # Cancel pending leaves completed items untouched
+        # Cancel pending leaves completed items untouched + failed item selection populates ErrorLogText
+        $win.State.Queue[1].Status = '失败'
+        $win.State.Queue[1].ErrorMessage = 'Simulated backend failure details'
+        & $win.Actions.RefreshQueue
+        $win.Controls.QueueList.Items[0].Selected = $false
+        $win.Controls.QueueList.Items[1].Selected = $true
+        [System.Windows.Forms.Application]::DoEvents()
+        Assert ($win.Controls.ErrorLogText.Text -match 'Simulated backend failure details') 'Selecting failed queue item did not update ErrorLogText'
+
+        $win.State.Queue[1].Status = '待处理'
         & $win.Actions.CancelPending
         Assert ($win.State.Queue[0].Status -eq '已完成') 'Completed item status changed by CancelPending'
         Assert ($win.State.Queue[1].Status -eq '已取消') 'Pending item was not marked Cancelled'

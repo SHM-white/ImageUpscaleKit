@@ -178,6 +178,11 @@ function Build-IUKUpscaleArguments {
         if ($Options.ComfyInstance) { [void]$args.Add('-ComfyInstance'); [void]$args.Add([string]$Options.ComfyInstance) }
         if ($Options.ComfyPreset) { [void]$args.Add('-ComfyPreset'); [void]$args.Add([string]$Options.ComfyPreset) }
         if ($Options.ComfyWorkflow) { [void]$args.Add('-ComfyWorkflow'); [void]$args.Add([string]$Options.ComfyWorkflow) }
+        if ($Options.ComfyParams -and $Options.ComfyParams.Count -gt 0) {
+            $json = $Options.ComfyParams | ConvertTo-Json -Compress -Depth 6
+            [void]$args.Add('-ComfyParamsJson')
+            [void]$args.Add($json)
+        }
     }
 
     return @($args)
