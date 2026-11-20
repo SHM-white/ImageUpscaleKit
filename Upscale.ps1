@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory=$true, Position=0)] [string]$InputPath,
     [string]$OutputPath,
-    [ValidateSet('ncnn','magpie','anime4kcpp')] [string]$Engine,
+    [ValidateSet('ncnn','magpie','anime4kcpp','comfyui')] [string]$Engine,
     [string]$Model,
     [string]$Scale,
     [int]$Tile = -1,
@@ -20,10 +20,22 @@ param(
     [ValidateRange(-1,65535)] [int]$AcDevice = -1,
     [ValidateSet('error','overwrite','rename')] [string]$ExistingOutput,
     [ValidateRange(1,256)] [int]$AcBatchSize,
-    [string]$MagpiePreset
+    [string]$MagpiePreset,
+    [string]$ComfyEndpoint,
+    [string]$ComfyInstance,
+    [string]$ComfyPreset,
+    [string]$ComfyWorkflow,
+    [string]$ComfyWorkflowMap,
+    [hashtable]$ComfyParams,
+    [string]$ComfyParamsJson
 )
 
 $ErrorActionPreference = 'Stop'
+try {
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [Console]::OutputEncoding = $utf8NoBom
+    $OutputEncoding = $utf8NoBom
+} catch {}
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigPath = Join-Path $Root 'config.json'
 $Cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -56,6 +68,28 @@ if ($Engine -eq 'magpie') {
     }
     & (Join-Path $Root 'MagpieBridge.ps1') @bridgeParams
     exit $LASTEXITCODE
+}
+if ($Engine -eq 'comfyui') {
+    $comfyParamsSplat = @{ InputPath = $InputPath }
+    if ($OutputPath) { $comfyParamsSplat.OutputPath = $OutputPath }
+    if ($ComfyEndpoint) { $comfyParamsSplat.ApiUrl = $ComfyEndpoint }
+    if ($ComfyInstance) { $comfyParamsSplat.InstanceName = $ComfyInstance }
+    if ($ComfyPreset) { $comfyParamsSplat.PresetName = $ComfyPreset }
+    if ($ComfyWorkflow) { $comfyParamsSplat.WorkflowPath = $ComfyWorkflow }
+    if ($ComfyWorkflowMap) { $comfyParamsSplat.WorkflowMapPath = $ComfyWorkflowMap }
+    $mergedComfyParams = @{}
+    if ($ComfyParamsJson) {
+        $parsedJson = $ComfyParamsJson | ConvertFrom-Json -AsHashtable
+        if ($parsedJson) {
+            foreach ($k in $parsedJson.Keys) { $mergedComfyParams[$k] = $parsedJson[$k] }
+        }
+    }
+    if ($ComfyParams) {
+        foreach ($k in $ComfyParams.Keys) { $mergedComfyParams[$k] = $ComfyParams[$k] }
+    }
+    if ($mergedComfyParams.Count -gt 0) { $comfyParamsSplat.WorkflowParams = $mergedComfyParams }
+    & (Join-Path $Root 'ComfyUI.ps1') @comfyParamsSplat
+    return
 }
 
 $n = $Cfg.ncnn

@@ -1,0 +1,41 @@
+{
+  "name": "SUPIR v0F 12GB 高保真版 (2x)",
+  "category": "supir",
+  "description": "使用 SUPIR-v0F 高保真权重 + 较低 CFG (3.5) + 12GB 分块策略，适合人像与复杂细节修复。",
+  "workflow": "workflows/supir/supir_v2_api_template.json",
+  "workflow_map": "workflows/supir/supir_v2_api_template.map.json",
+  "required_custom_nodes": [
+    {
+      "class_type": "SUPIR_model_loader_v2",
+      "repo": "https://github.com/kijai/ComfyUI-SUPIR"
+    }
+  ],
+  "compatibility": {
+    "vram_recommended_gb": 12,
+    "cuda_supported": true,
+    "xpu_status": "experimental_requires_testing",
+    "license": "Non-Commercial Research / Personal Use Only (Fanghua-Yu/SUPIR)",
+    "model_source": "https://huggingface.co/Kijai/SUPIR_pruned"
+  },
+  "defaults": {
+    "scale_by": 2.0,
+    "supir_model": "SUPIR-v0F_fp16.safetensors",
+    "fp8_unet": false,
+    "diffusion_dtype": "bf16",
+    "high_vram": false,
+    "use_tiled_vae": true,
+    "encoder_tile_size": 512,
+    "decoder_tile_size": 512,
+    "steps": 28,
+    "cfg_scale_start": 3.5,
+    "cfg_scale_end": 3.5,
+    "control_scale_start": 1.0,
+    "control_scale_end": 1.0,
+    "keep_model_loaded": false,
+    "sampler": "TiledRestoreEDMSampler",
+    "sampler_tile_size": 768,
+    "sampler_tile_stride": 384,
+    "positive_prompt": "faithful high-resolution photo restoration, natural skin texture, crisp details",
+    "negative_prompt": "plastic skin, blurry, distorted features, artifacts, watermark"
+  }
+}

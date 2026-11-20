@@ -1,0 +1,32 @@
+{
+  "name": "USDU 细节增强 (2x)",
+  "category": "usdu",
+  "description": "中等重绘 (denoise=0.35) + 768 分块，在尽量保留原构图下补充纹理、布料与发丝细节。",
+  "workflow": "workflows/usdu/usdu_api_template.json",
+  "workflow_map": "workflows/usdu/usdu_api_template.map.json",
+  "required_custom_nodes": [
+    {
+      "class_type": "UltimateSDUpscale",
+      "repo": "https://github.com/ssitu/ComfyUI_UltimateSDUpscale"
+    }
+  ],
+  "defaults": {
+    "upscale_by": 2.0,
+    "denoise": 0.35,
+    "cfg": 6.5,
+    "steps": 24,
+    "sampler_name": "euler",
+    "scheduler": "karras",
+    "mode_type": "Chess",
+    "tile_width": 768,
+    "tile_height": 768,
+    "mask_blur": 16,
+    "tile_padding": 64,
+    "seam_fix_mode": "Half Tile",
+    "seam_fix_denoise": 0.22,
+    "tiled_decode": true,
+    "batch_size": 1,
+    "positive_prompt": "masterpiece, ultra-detailed textures, sharp crisp lines, natural lighting, keep original character pose and outfit",
+    "negative_prompt": "blurry, over-sharpened, altered face, different costume, artifacts, watermark"
+  }
+}

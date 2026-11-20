@@ -1,0 +1,27 @@
+{
+  "input_image": { "class_type": "LoadImage", "input": "image" },
+  "output_node": { "class_type": "SaveImage" },
+  "parameters": {
+    "scale_by": { "class_type": "ImageScaleBy", "input": "scale_by", "type": "float" },
+    "sdxl_checkpoint": { "class_type": "CheckpointLoaderSimple", "input": "ckpt_name", "type": "string" },
+    "supir_model": { "class_type": "SUPIR_model_loader_v2", "input": "supir_model", "type": "string" },
+    "fp8_unet": { "class_type": "SUPIR_model_loader_v2", "input": "fp8_unet", "type": "bool" },
+    "diffusion_dtype": { "class_type": "SUPIR_model_loader_v2", "input": "diffusion_dtype", "type": "string" },
+    "high_vram": { "class_type": "SUPIR_model_loader_v2", "input": "high_vram", "type": "bool" },
+    "use_tiled_vae": { "class_type": "SUPIR_first_stage", "input": "use_tiled_vae", "type": "bool" },
+    "encoder_tile_size": { "class_type": "SUPIR_first_stage", "input": "encoder_tile_size", "type": "int" },
+    "decoder_tile_size": { "class_type": "SUPIR_decode", "input": "decoder_tile_size", "type": "int" },
+    "positive_prompt": { "class_type": "SUPIR_conditioner", "input": "positive_prompt", "type": "string" },
+    "negative_prompt": { "class_type": "SUPIR_conditioner", "input": "negative_prompt", "type": "string" },
+    "seed": { "class_type": "SUPIR_sample", "input": "seed", "type": "int" },
+    "steps": { "class_type": "SUPIR_sample", "input": "steps", "type": "int" },
+    "cfg_scale_start": { "class_type": "SUPIR_sample", "input": "cfg_scale_start", "type": "float" },
+    "cfg_scale_end": { "class_type": "SUPIR_sample", "input": "cfg_scale_end", "type": "float" },
+    "control_scale_start": { "class_type": "SUPIR_sample", "input": "control_scale_start", "type": "float" },
+    "control_scale_end": { "class_type": "SUPIR_sample", "input": "control_scale_end", "type": "float" },
+    "keep_model_loaded": { "class_type": "SUPIR_sample", "input": "keep_model_loaded", "type": "bool" },
+    "sampler": { "class_type": "SUPIR_sample", "input": "sampler", "type": "string" },
+    "sampler_tile_size": { "class_type": "SUPIR_sample", "input": "sampler_tile_size", "type": "int" },
+    "sampler_tile_stride": { "class_type": "SUPIR_sample", "input": "sampler_tile_stride", "type": "int" }
+  }
+}
