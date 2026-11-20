@@ -742,6 +742,9 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $refreshQueueUI = {
         $state.Syncing = $true
         try {
+            $topRow = if ($queueList.IsHandleCreated -and $queueList.Items.Count -gt 0) { $queueList.TopItem }
+            $topId = $topRow.Tag.Id
+            $topIndex = $topRow.Index
             $selectedIds = @{}
             foreach ($row in $queueList.SelectedItems) {
                 $selectedIds[$row.Tag.Id] = $true
@@ -752,6 +755,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
                 $queueList.Items.Clear()
                 for ($i = 0; $i -lt $state.Queue.Count; $i++) {
                     $q = $state.Queue[$i]
+                    if ($q.Id -eq $topId) { $topIndex = $i }
                     $lvi = [System.Windows.Forms.ListViewItem]::new($q.FileName)
                     $lvi.Tag = $q
                     $timeStr = if ($q.ElapsedMs -gt 0) { '{0:F1}s' -f ($q.ElapsedMs / 1000.0) } else { '-' }
@@ -771,6 +775,10 @@ function Get-IUKQuickPresets([string]$KitRoot) {
                 }
             } finally {
                 $queueList.EndUpdate()
+            }
+            # Restore the viewport after WinForms inserts the rebuilt rows.
+            if ($topRow -and $queueList.Items.Count -gt 0) {
+                $queueList.TopItem = $queueList.Items[[Math]::Min($topIndex, $queueList.Items.Count - 1)]
             }
 
             $lblDropHint.Visible = ($state.Queue.Count -eq 0)
