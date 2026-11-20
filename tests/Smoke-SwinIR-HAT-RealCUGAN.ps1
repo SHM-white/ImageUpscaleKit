@@ -335,7 +335,20 @@ try {
         $srv.Dispose()
     }
 
-    Write-Host 'PASS: Real-CUGAN validation/execution, ModelManager SHA-256 & ComfyUI spandrel SwinIR/HAT presets.'
+    # 5. ModelManager GUI dialog TestMode verification (all 8 registry items + installed vs uninstalled refresh)
+    . (Join-Path $root 'gui\ModelManagerDialog.ps1')
+    $dlg = Show-IUKModelManagerDialog -Root $root -ComfyInstallDir (Join-Path $work 'ComfyUI') -TestMode
+    try {
+        Assert ($dlg.ListView.Items.Count -ge 8) "Expected >= 8 models in ModelManagerDialog, got $($dlg.ListView.Items.Count)"
+        $uninst = @($dlg.ListView.Items | Where-Object { $_.SubItems[3].Text -eq '未安装' })
+        Assert ($uninst.Count -ge 1) 'Expected uninstalled models in empty ComfyUI test directory'
+        $manual = @($dlg.ListView.Items | Where-Object { $_.SubItems[3].Text -eq '需手动下载' })
+        Assert ($manual.Count -ge 2) 'Expected manual-download SUPIR models in dialog'
+    } finally {
+        $dlg.Form.Dispose()
+    }
+
+    Write-Host 'PASS: Real-CUGAN validation/execution, ModelManager SHA-256, ModelManagerDialog & ComfyUI spandrel SwinIR/HAT presets.'
 } finally {
     $resolved = [IO.Path]::GetFullPath($work)
     $tempRoot = [IO.Path]::GetFullPath((Join-Path $root 'temp')).TrimEnd('\') + '\'

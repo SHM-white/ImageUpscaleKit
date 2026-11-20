@@ -137,6 +137,10 @@ function Install-IUKModel {
         & (Join-Path $Root 'Setup-RealCUGAN.ps1')
         return (Resolve-IUKModelTargetPath -Entry $entry -Root $Root)
     }
+    if ([string]$entry.id -eq 'realesrgan-x4plus-anime') {
+        & (Join-Path $Root 'Setup.ps1') -Engine ncnn
+        return (Resolve-IUKModelTargetPath -Entry $entry -Root $Root)
+    }
 
     if (-not $ComfyInstallDir -and -not $TargetDir -and (Test-Path -LiteralPath (Join-Path $Root 'ConfigHelpers.ps1') -PathType Leaf)) {
         try {
@@ -155,6 +159,7 @@ function Install-IUKModel {
     if ((Test-Path -LiteralPath $dest -PathType Leaf) -and -not $Force) {
         $existingHash = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash
         if (-not $entry.sha256 -or $existingHash -ieq [string]$entry.sha256) {
+            Write-Host "Model already installed and verified: $dest"
             return $dest
         }
     }
@@ -162,9 +167,47 @@ function Install-IUKModel {
     $parent = Split-Path -Parent $dest
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
     $tmp = "$dest.tmp.$([guid]::NewGuid().ToString('N'))"
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $handler.AllowAutoRedirect = $true
+    $http = [System.Net.Http.HttpClient]::new($handler)
+    $http.Timeout = [TimeSpan]::FromMinutes(30)
+    $http.DefaultRequestHeaders.UserAgent.ParseAdd('ImageUpscaleKit/1.0')
     try {
         Write-Host "Downloading $($entry.name) from $($entry.download_url)..."
-        Invoke-WebRequest -Uri ([string]$entry.download_url) -OutFile $tmp -TimeoutSec 300
+        $resp = $http.GetAsync([string]$entry.download_url, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        if (-not $resp.IsSuccessStatusCode) {
+            throw "Download failed (HTTP $([int]$resp.StatusCode)): $($entry.download_url)"
+        }
+        $totalBytes = $resp.Content.Headers.ContentLength
+        $inStream = $resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $outStream = [IO.File]::Create($tmp)
+        try {
+            $buf = [byte[]]::new(65536)
+            $readTotal = 0L
+            $lastPct = -10
+            $nextUnknownMb = 5L
+            while (($n = $inStream.Read($buf, 0, $buf.Length)) -gt 0) {
+                $outStream.Write($buf, 0, $n)
+                $readTotal += $n
+                if ($totalBytes -and $totalBytes -gt 0) {
+                    $pct = [int][Math]::Floor(($readTotal * 100.0) / $totalBytes)
+                    if ($pct -ge ($lastPct + 10) -or $pct -eq 100) {
+                        $lastPct = $pct
+                        Write-Host ("Progress: {0}% ({1:F1} / {2:F1} MB)" -f $pct, ($readTotal / 1MB), ($totalBytes / 1MB))
+                    }
+                } elseif (($readTotal / 1MB) -ge $nextUnknownMb) {
+                    Write-Host ("Progress: {0:F1} MB downloaded" -f ($readTotal / 1MB))
+                    $nextUnknownMb += 5L
+                }
+            }
+            if ($totalBytes -and $totalBytes -gt 0 -and $lastPct -lt 100) {
+                Write-Host ("Progress: 100% ({0:F1} / {1:F1} MB)" -f ($readTotal / 1MB), ($totalBytes / 1MB))
+            }
+        } finally {
+            $outStream.Dispose()
+            $inStream.Dispose()
+            $resp.Dispose()
+        }
         if (-not (Test-Path -LiteralPath $tmp -PathType Leaf) -or (Get-Item -LiteralPath $tmp).Length -eq 0) {
             throw "Downloaded file is empty: $($entry.download_url)"
         }
@@ -176,6 +219,8 @@ function Install-IUKModel {
         Write-Host "Installed model: $dest (SHA256: $actualHash)" -ForegroundColor Green
         return $dest
     } finally {
+        $http.Dispose()
+        $handler.Dispose()
         if (Test-Path -LiteralPath $tmp) {
             Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
         }
