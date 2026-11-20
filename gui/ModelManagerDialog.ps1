@@ -365,7 +365,7 @@ function Show-IUKModelManagerDialog {
         $rootEsc = $c.Root -replace "'", "''"
         $comfyEsc = $comfyDir -replace "'", "''"
         $forceFlag = if ($m.Installed) { ' -Force' } else { '' }
-        $cmdText = "`$ErrorActionPreference='Stop'; . '$mmEsc'; Install-IUKModel -ModelId '$idEsc' -Root '$rootEsc' -ComfyInstallDir '$comfyEsc'$forceFlag"
+        $cmdText = "`$utf8=[System.Text.UTF8Encoding]::new(`$false); try { [Console]::OutputEncoding=`$utf8; `$OutputEncoding=`$utf8 } catch {}; `$ErrorActionPreference='Stop'; . '$mmEsc'; Install-IUKModel -ModelId '$idEsc' -Root '$rootEsc' -ComfyInstallDir '$comfyEsc'$forceFlag"
 
         if ('ImageUpscaleKit.Execution.IukAsyncProcessRunner' -as [type]) {
             $c.ActiveRunner = [ImageUpscaleKit.Execution.IukAsyncProcessRunner]::new('pwsh.exe', @('-NoProfile', '-Command', $cmdText), $c.Root)
