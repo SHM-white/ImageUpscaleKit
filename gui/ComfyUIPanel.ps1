@@ -1,10 +1,22 @@
-﻿function New-IUKComfyUIPanel {
+﻿$_iukPanelRoot = Split-Path -Parent $PSScriptRoot
+if (-not (Get-Command 'Get-IUKConfig' -ErrorAction SilentlyContinue)) {
+    . (Join-Path $_iukPanelRoot 'ConfigHelpers.ps1')
+}
+if (-not (Get-Command 'Test-IUKComfyUIConnection' -ErrorAction SilentlyContinue)) {
+    . (Join-Path $_iukPanelRoot 'ComfyUI.ps1')
+}
+
+function New-IUKComfyUIPanel {
     param(
         [Parameter(Mandatory = $true)] [string]$Root
     )
 
-    . (Join-Path $Root 'ConfigHelpers.ps1')
-    . (Join-Path $Root 'ComfyUI.ps1')
+    if (-not (Get-Command 'Get-IUKConfig' -ErrorAction SilentlyContinue)) {
+        . (Join-Path $Root 'ConfigHelpers.ps1')
+    }
+    if (-not (Get-Command 'Test-IUKComfyUIConnection' -ErrorAction SilentlyContinue)) {
+        . (Join-Path $Root 'ComfyUI.ps1')
+    }
 
     $panel = [System.Windows.Forms.GroupBox]::new()
     $panel.Text = 'ComfyUI 推理后端 (CUDA / Intel XPU)'
