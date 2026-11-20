@@ -1,0 +1,10 @@
+{
+  "name": "SwinIR RealSR x4 (ComfyUI 原生)",
+  "category": "swinir",
+  "description": "使用 ComfyUI 内置 spandrel 节点 (UpscaleModelLoader + ImageUpscaleWithModel) 运行真实场景 BSRGAN 4x 超分，兼容 CUDA 与 Intel XPU。",
+  "workflow": "workflows/spandrel/upscale_model_api_template.json",
+  "workflow_map": "workflows/spandrel/upscale_model_api_template.map.json",
+  "defaults": {
+    "upscale_model": "003_realSR_BSRGAN_DFO_s64w8_SwinIR-M_x4_GAN.pth"
+  }
+}

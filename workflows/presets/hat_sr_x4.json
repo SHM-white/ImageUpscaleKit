@@ -1,0 +1,10 @@
+{
+  "name": "HAT ImageNet Pretrain x4 (ComfyUI 原生)",
+  "category": "hat",
+  "description": "使用 ComfyUI 内置 spandrel 节点运行 HAT_SRx4_ImageNet-pretrain（Apache-2.0），适合自然纹理与细节保真放大。",
+  "workflow": "workflows/spandrel/upscale_model_api_template.json",
+  "workflow_map": "workflows/spandrel/upscale_model_api_template.map.json",
+  "defaults": {
+    "upscale_model": "HAT_SRx4_ImageNet-pretrain.pth"
+  }
+}

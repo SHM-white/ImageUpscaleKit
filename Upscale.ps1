@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory=$true, Position=0)] [string]$InputPath,
     [string]$OutputPath,
-    [ValidateSet('ncnn','magpie','anime4kcpp','comfyui')] [string]$Engine,
+    [ValidateSet('ncnn','magpie','anime4kcpp','comfyui','realcugan')] [string]$Engine,
     [string]$Model,
     [string]$Scale,
     [int]$Tile = -1,
@@ -27,7 +27,9 @@ param(
     [string]$ComfyWorkflow,
     [string]$ComfyWorkflowMap,
     [hashtable]$ComfyParams,
-    [string]$ComfyParamsJson
+    [string]$ComfyParamsJson,
+    [ValidateSet(-1,0,1,2,3)] [int]$NoiseLevel = -1,
+    [ValidateRange(0,3)] [int]$SyncGap = 3
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,6 +45,8 @@ if (-not $Engine) { $Engine = [string]$Cfg.engine }
 
 if ($PSBoundParameters.ContainsKey('AcBatchSize') -and $Engine -ne 'anime4kcpp') { throw 'AcBatchSize applies only to Anime4KCPP.' }
 if ($ExistingOutput -and $Engine -ne 'anime4kcpp') { throw 'ExistingOutput currently applies only to the Anime4KCPP backend.' }
+if ($PSBoundParameters.ContainsKey('NoiseLevel') -and $Engine -ne 'realcugan') { throw 'NoiseLevel applies only to Real-CUGAN.' }
+if ($PSBoundParameters.ContainsKey('SyncGap') -and $Engine -ne 'realcugan') { throw 'SyncGap applies only to Real-CUGAN.' }
 if ($Engine -eq 'anime4kcpp') {
     if ($Scale -and $Scale -notin @('auto','2')) { throw 'Anime4KCPP currently supports 2x output in this kit.' }
     $acParams = @{ InputPath=$InputPath; Device=$AcDevice }
@@ -89,6 +93,22 @@ if ($Engine -eq 'comfyui') {
     }
     if ($mergedComfyParams.Count -gt 0) { $comfyParamsSplat.WorkflowParams = $mergedComfyParams }
     & (Join-Path $Root 'ComfyUI.ps1') @comfyParamsSplat
+    return
+}
+if ($Engine -eq 'realcugan') {
+    $rcParams = @{ InputPath = $InputPath }
+    if ($OutputPath) { $rcParams.OutputPath = $OutputPath }
+    if ($Model) { $rcParams.Model = $Model }
+    if ($Scale -and $Scale -ne 'auto') { $rcParams.Scale = $Scale }
+    if ($PSBoundParameters.ContainsKey('NoiseLevel')) { $rcParams.NoiseLevel = $NoiseLevel }
+    if ($Tile -ge 0) { $rcParams.Tile = $Tile }
+    if ($PSBoundParameters.ContainsKey('SyncGap')) { $rcParams.SyncGap = $SyncGap }
+    if ($Gpu) { $rcParams.Gpu = $Gpu }
+    if ($Threads) { $rcParams.Threads = $Threads }
+    if ($Format) { $rcParams.Format = $Format }
+    if ($Tta) { $rcParams.Tta = $true }
+    if ($VerboseLog) { $rcParams.VerboseLog = $true }
+    & (Join-Path $Root 'RealCUGAN.ps1') @rcParams
     return
 }
 
