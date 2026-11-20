@@ -368,7 +368,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $errPanel.Controls.Add($errHeader)
 
     $lblDropHint = [System.Windows.Forms.Label]::new()
-    $lblDropHint.Text = "将图片或文件夹拖入窗口，或点击顶部「导入图片」"
+    $lblDropHint.Text = '拖入图片/文件夹，或点击顶部「导入图片」'
     $lblDropHint.Dock = [System.Windows.Forms.DockStyle]::Bottom
     $lblDropHint.Height = 32
     $lblDropHint.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
@@ -493,6 +493,7 @@ function Get-IUKQuickPresets([string]$KitRoot) {
     $pluginHost.AutoSize = $true
     $pluginHost.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
     $pluginHost.Width = $cardW
+    $pluginHost.MinimumSize = [System.Drawing.Size]::new($cardW, 0)
     $rightStack.Controls.Add($pluginHost)
 
     $guiPluginDir = Join-Path $Root 'gui'

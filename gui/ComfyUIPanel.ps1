@@ -20,23 +20,33 @@ function New-IUKComfyUIPanel {
 
     $panel = [System.Windows.Forms.GroupBox]::new()
     $panel.Text = 'ComfyUI 推理后端 (CUDA / Intel XPU)'
-    $panel.Width = 334
-    $panel.AutoSize = $true
-    $panel.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $panel.AutoSize = $false
+    $panel.Size = [System.Drawing.Size]::new(334, 472)
+    $panel.MinimumSize = [System.Drawing.Size]::new(334, 472)
     $panel.Padding = [System.Windows.Forms.Padding]::new(8, 6, 8, 8)
 
     $allCfg = Get-IUKConfig -Root $Root
     $presets = @(Get-IUKComfyPresets -Root $Root)
 
     $grid = [System.Windows.Forms.TableLayoutPanel]::new()
-    $grid.Dock = [System.Windows.Forms.DockStyle]::Top
-    $grid.AutoSize = $true
-    $grid.AutoSizeMode = [System.Windows.Forms.AutoSizeMode]::GrowAndShrink
+    $grid.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $grid.AutoSize = $false
     $grid.ColumnCount = 3
-    $grid.Width = 316
-    [void]$grid.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Absolute, 78))
+    $grid.RowCount = 11
+    [void]$grid.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Absolute, 86))
     [void]$grid.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Percent, 100))
-    [void]$grid.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Absolute, 70))
+    [void]$grid.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new([System.Windows.Forms.SizeType]::Absolute, 74))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 32))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 30))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 34))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 56))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 32))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 30))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 30))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 32))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 32))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Absolute, 32))
+    [void]$grid.RowStyles.Add([System.Windows.Forms.RowStyle]::new([System.Windows.Forms.SizeType]::Percent, 100))
 
     function New-GridLbl([string]$Text) {
         $l = [System.Windows.Forms.Label]::new()
